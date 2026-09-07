@@ -1,0 +1,158 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Item;
+use App\Models\Organization;
+use App\Models\PurchaseRequest;
+use App\Models\PurchaseRequestItem;
+use App\Models\User;
+use Tests\TestCase;
+
+class ProcurementPrManagementTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->artisan('migrate:fresh');
+        $this->artisan('db:seed');
+    }
+
+    public function test_pr_index_renders_with_kpi_cards_and_modal_actions(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+
+        $response = $this->actingAs($admin)->get(route('procurement.pr.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee('Purchase Requests (PR)');
+        $response->assertSee('small-box', false);
+        $response->assertSee('table-striped', false);
+        $response->assertSee('openViewModal');
+        $response->assertSee('openEditModal');
+        $response->assertSee('openDeleteModal');
+        $response->assertSee('openCreateModal');
+        $response->assertSee('Menampilkan');
+        $response->assertSee('Baris per halaman');
+    }
+
+    public function test_can_create_pr_via_modal_store(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+        $org = Organization::first();
+        $item = Item::first();
+
+        $response = $this->actingAs($admin)->post(route('procurement.pr.store'), [
+            'organization_id' => $org->id,
+            'procurement_method' => 'E_PURCHASING',
+            'purpose' => 'Pengadaan ATK Rutin Kantor Test',
+            'items' => [
+                [
+                    'item_id' => $item->id,
+                    'qty' => 15,
+                    'unit_price' => 50000,
+                    'specs' => 'Kertas A4 80gr',
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('procurement.pr.index'));
+        $this->assertDatabaseHas('purchase_requests', [
+            'organization_id' => $org->id,
+            'purpose' => 'Pengadaan ATK Rutin Kantor Test',
+            'procurement_method' => 'E_PURCHASING',
+        ]);
+        $this->assertDatabaseHas('purchase_request_items', [
+            'item_id' => $item->id,
+            'qty_requested' => 15,
+        ]);
+    }
+
+    public function test_can_update_pr_via_put_route(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+        $org = Organization::first();
+        $item = Item::first();
+
+        $pr = PurchaseRequest::create([
+            'pr_number' => 'PR-TEST-UPDATE-01',
+            'organization_id' => $org->id,
+            'created_by_user_id' => $admin->id,
+            'procurement_method' => 'DIRECT_PURCHASE',
+            'purpose' => 'Pengadaan Awal',
+            'status' => 'SUBMITTED',
+            'estimated_total_cost' => 100000,
+        ]);
+
+        PurchaseRequestItem::create([
+            'purchase_request_id' => $pr->id,
+            'item_id' => $item->id,
+            'qty_requested' => 5,
+            'estimated_unit_price' => 20000,
+            'estimated_subtotal' => 100000,
+            'notes' => 'Awal',
+        ]);
+
+        $response = $this->actingAs($admin)->put(route('procurement.pr.update', $pr->id), [
+            'organization_id' => $org->id,
+            'procurement_method' => 'E_PURCHASING',
+            'purpose' => 'Pengadaan ATK Diperbarui',
+            'items' => [
+                [
+                    'item_id' => $item->id,
+                    'qty' => 10,
+                    'unit_price' => 25000,
+                    'notes' => 'Diperbarui',
+                ],
+            ],
+        ]);
+
+        $response->assertRedirect(route('procurement.pr.index'));
+        $this->assertDatabaseHas('purchase_requests', [
+            'id' => $pr->id,
+            'purpose' => 'Pengadaan ATK Diperbarui',
+            'procurement_method' => 'E_PURCHASING',
+            'estimated_total_cost' => 250000,
+        ]);
+        $this->assertDatabaseHas('purchase_request_items', [
+            'purchase_request_id' => $pr->id,
+            'qty_requested' => 10,
+            'estimated_subtotal' => 250000,
+        ]);
+    }
+
+    public function test_can_destroy_unapproved_pr(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+        $org = Organization::first();
+        $item = Item::first();
+
+        $pr = PurchaseRequest::create([
+            'pr_number' => 'PR-TEST-DESTROY-01',
+            'organization_id' => $org->id,
+            'created_by_user_id' => $admin->id,
+            'procurement_method' => 'DIRECT_PURCHASE',
+            'purpose' => 'Pengadaan Untuk Dihapus',
+            'status' => 'SUBMITTED',
+            'estimated_total_cost' => 50000,
+        ]);
+
+        PurchaseRequestItem::create([
+            'purchase_request_id' => $pr->id,
+            'item_id' => $item->id,
+            'qty_requested' => 1,
+            'estimated_unit_price' => 50000,
+            'estimated_subtotal' => 50000,
+        ]);
+
+        $response = $this->actingAs($admin)->delete(route('procurement.pr.destroy', $pr->id));
+
+        $response->assertRedirect(route('procurement.pr.index'));
+        $this->assertDatabaseMissing('purchase_requests', [
+            'id' => $pr->id,
+        ]);
+        $this->assertDatabaseMissing('purchase_request_items', [
+            'purchase_request_id' => $pr->id,
+        ]);
+    }
+}
