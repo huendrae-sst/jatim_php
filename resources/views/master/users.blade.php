@@ -77,7 +77,7 @@
         <!-- Card Header -->
         <div class="card-header border-bottom d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 py-3 px-4">
             <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                <i class="bi bi-people text-danger me-2"></i> Daftar Pegawai & Hak Akses
+                Daftar Pegawai & Hak Akses
             </h3>
             <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
                 <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">{{ $users->total() }} Pegawai Ditemukan</span>

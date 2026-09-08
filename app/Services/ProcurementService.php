@@ -112,12 +112,27 @@ class ProcurementService
 
             AuditTrailService::log('APPROVE_PR', $pr, null, ['status' => 'APPROVED'], $approver);
 
-            NotificationService::sendInfo(
-                'Purchase Request Disetujui',
-                "PR {$pr->pr_number} telah disetujui dan masuk ke Approved PR Pool untuk dikonsolidasi.",
+            NotificationService::sendUser(
                 $pr->created_by_user_id,
-                'PROCUREMENT_OFFICER',
+                'Purchase Request Disetujui',
+                "PR {$pr->pr_number} telah disetujui dan masuk ke Approved PR Pool untuk dikonsolidasi menjadi PO.",
+                'INFORMATION',
+                'INFO',
+                'PR',
+                $pr->id,
                 "/procurement/pr/{$pr->id}"
+            );
+
+            NotificationService::sendRole(
+                'PROCUREMENT_OFFICER',
+                'PR Siap Dikonsolidasi',
+                "PR {$pr->pr_number} telah disetujui dan siap dikonsolidasi ke Purchase Order pada Approved PR Pool.",
+                null,
+                'INFORMATION',
+                'INFO',
+                'PR',
+                $pr->id,
+                '/procurement/consolidation'
             );
 
             return $pr;
@@ -144,11 +159,14 @@ class ProcurementService
 
             AuditTrailService::log('REJECT_PR', $pr, ['status' => $previousStatus], ['status' => 'REJECTED', 'reason' => $reason], $user);
 
-            NotificationService::sendInfo(
+            NotificationService::sendUser(
+                $pr->created_by_user_id,
                 'Purchase Request Ditolak',
                 "PR {$pr->pr_number} telah ditolak dengan alasan: {$reason}",
-                $pr->created_by_user_id,
-                'PROCUREMENT_OFFICER',
+                'INFORMATION',
+                'WARNING',
+                'PR',
+                $pr->id,
                 "/procurement/pr/{$pr->id}"
             );
 
@@ -261,12 +279,27 @@ class ProcurementService
 
             AuditTrailService::log('APPROVE_PO', $po, null, ['status' => 'ISSUED', 'approved_by' => $approver->name], $approver);
 
-            NotificationService::sendInfo(
-                'Purchase Order Disetujui & Diterbitkan',
-                "PO {$po->po_number} telah disetujui dan diterbitkan untuk proses pengiriman serta penerimaan barang vendor.",
+            NotificationService::sendUser(
                 $po->created_by_user_id,
-                'WAREHOUSE_OFFICER',
+                'Purchase Order Disetujui & Diterbitkan',
+                "PO {$po->po_number} senilai Rp ".number_format($po->total_amount, 0, ',', '.').' telah disetujui dan resmi diterbitkan.',
+                'INFORMATION',
+                'INFO',
+                'PO',
+                $po->id,
                 "/procurement/po/{$po->id}"
+            );
+
+            NotificationService::sendRole(
+                'WAREHOUSE_OFFICER',
+                'PO Baru Diterbitkan - Persiapan Penerimaan',
+                "PO {$po->po_number} telah disetujui dan diterbitkan. Mohon monitor pengiriman serta persiapan penerimaan barang vendor (GRN).",
+                null,
+                'INFORMATION',
+                'INFO',
+                'PO',
+                $po->id,
+                '/receiving/po'
             );
 
             return $po;
@@ -321,11 +354,14 @@ class ProcurementService
 
             AuditTrailService::log('REJECT_PO', $po, ['status' => $previousStatus], ['status' => 'REJECTED', 'reason' => $reason], $user);
 
-            NotificationService::sendInfo(
+            NotificationService::sendUser(
+                $po->created_by_user_id,
                 'Purchase Order Ditolak',
                 "PO {$po->po_number} telah ditolak. Alasan: {$reason}. Alokasi item PR telah dikembalikan ke Approved PR Pool.",
-                $po->created_by_user_id,
-                'PROCUREMENT_OFFICER',
+                'INFORMATION',
+                'WARNING',
+                'PO',
+                $po->id,
                 "/procurement/po/{$po->id}"
             );
 
@@ -398,13 +434,42 @@ class ProcurementService
 
             AuditTrailService::log('RECEIVE_VENDOR_GOODS', $grn, null, ['grn_number' => $grn->grn_number, 'po' => $po->po_number], $user);
 
-            NotificationService::sendInfo(
+            NotificationService::sendUser(
+                $po->created_by_user_id,
+                "Penerimaan Barang Vendor (PO {$po->po_number})",
+                "Barang untuk PO {$po->po_number} telah diterima di gudang (GRN: {$grn->grn_number}, Status PO: {$po->status}).",
+                'INFORMATION',
+                'INFO',
+                'PO',
+                $po->id,
+                '/receiving/po?tab=history'
+            );
+
+            NotificationService::sendRole(
+                'INVENTORY_OFFICER',
                 "Penerimaan Barang PO {$po->po_number}",
                 "Barang dari vendor telah diterima dan diposting ke Stock Ledger (GRN: {$grn->grn_number}).",
                 null,
-                'INVENTORY_OFFICER',
+                'INFORMATION',
+                'INFO',
+                'PO',
+                $po->id,
                 '/receiving/po?tab=history'
             );
+
+            $totalRejected = collect($receivedItemsData)->sum(fn ($i) => (int) ($i['qty_rejected'] ?? 0));
+            if ($totalRejected > 0) {
+                NotificationService::sendAlert(
+                    "Discrepancy Penolakan Barang Vendor PO {$po->po_number}",
+                    "Terdapat {$totalRejected} unit barang ditolak/rusak dari vendor pada penerimaan GRN {$grn->grn_number}.",
+                    'HIGH',
+                    'PROCUREMENT_OFFICER',
+                    null,
+                    'PO',
+                    $po->id,
+                    '/receiving/po?tab=history'
+                );
+            }
 
             return $grn;
         });

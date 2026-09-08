@@ -505,17 +505,59 @@ class SwitchingStockService
 
             AuditTrailService::log('APPROVE_SWITCHING_STOCK', $switching, null, ['status' => 'APPROVED'], $approver);
 
-            $refNumber = $switching->order ? "#{$switching->order->order_number}" : "(Manual #{$switching->id})";
+            $refNumber = $switching->order ? "Order #{$switching->order->order_number}" : "Switching Manual #{$switching->id}";
             $itemDesc = $switching->items->count() > 1
                 ? "{$switching->items->count()} jenis barang ({$switching->total_qty} unit)"
                 : "{$switching->total_qty} unit";
 
-            NotificationService::sendInfo(
-                'Switching Stock Disetujui',
-                "Switching stock {$itemDesc} untuk {$refNumber} telah disetujui.",
-                null,
+            $targetUrl = $switching->order_id ? "/orders/{$switching->order_id}" : '/inventory/switching-stocks';
+
+            if ($switching->proposed_by_user_id) {
+                NotificationService::sendUser(
+                    $switching->proposed_by_user_id,
+                    'Switching Stock Disetujui',
+                    "Pengajuan switching stock {$itemDesc} untuk {$refNumber} telah disetujui.",
+                    'INFORMATION',
+                    'INFO',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    $targetUrl
+                );
+            }
+
+            if ($switching->order && $switching->order->created_by_user_id !== $switching->proposed_by_user_id) {
+                NotificationService::sendUser(
+                    $switching->order->created_by_user_id,
+                    'Switching Stock Order Disetujui',
+                    "Pemenuhan alternatif dari {$switching->sourceWarehouse->name} untuk order {$switching->order->order_number} telah disetujui.",
+                    'INFORMATION',
+                    'INFO',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    "/orders/{$switching->order_id}"
+                );
+            }
+
+            NotificationService::sendRole(
                 'INVENTORY_OFFICER',
-                $switching->order_id ? "/orders/{$switching->order_id}" : '/inventory/switching-stocks'
+                'Switching Stock Disetujui & Stok Direservasi',
+                "Switching stock {$itemDesc} untuk {$refNumber} telah disetujui. Stok pada {$switching->sourceWarehouse->name} telah direservasi.",
+                null,
+                'INFORMATION',
+                'INFO',
+                'SWITCHING_STOCK',
+                $switching->id,
+                $targetUrl
+            );
+
+            NotificationService::sendActionRequired(
+                "Persiapan Transfer Switching Stock ({$refNumber})",
+                "Switching stock {$itemDesc} telah disetujui. Mohon gudang {$switching->sourceWarehouse->name} mempersiapkan transfer barang ke {$switching->destinationWarehouse->name}.",
+                'WAREHOUSE_OFFICER',
+                $switching->source_organization_id,
+                'SWITCHING_STOCK',
+                $switching->id,
+                '/inventory/switching-stocks'
             );
 
             return $switching;

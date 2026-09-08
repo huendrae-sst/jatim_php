@@ -267,7 +267,7 @@
         <!-- Card Header with Title and Create Order Button Aligned Right -->
         <div class="card-header border-bottom d-flex align-items-center justify-content-between py-3 px-4">
             <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                <i class="bi bi-cart-check text-danger me-2"></i> Daftar Order Permintaan Barang
+                Daftar Order Permintaan Barang
             </h3>
             <div class="card-tools ms-auto">
                 <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
@@ -565,7 +565,7 @@
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-1.5">
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-0">
-                                <i class="bi bi-box-seam me-1 text-danger"></i> Daftar Barang yang Diminta (<span x-text="createRows.length"></span> item)
+                                Daftar Barang yang Diminta (<span x-text="createRows.length"></span> item)
                             </label>
                             <button type="button" @click="addCreateRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold">
                                 <i class="bi bi-plus-circle me-1"></i> Tambah Item
@@ -783,9 +783,7 @@
 
                 <!-- Items Table -->
                 <div>
-                    <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-1.5">
-                        <i class="bi bi-box-seam me-1 text-danger"></i> Rincian Barang Diminta
-                    </label>
+                    <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-1.5">Rincian Barang Diminta</label>
                     <div class="table-responsive rounded border border-secondary-subtle" style="max-height: 220px; overflow-y: auto;">
                         <table class="table table-sm table-hover align-middle mb-0 fs-8">
                             <thead class="bg-body-tertiary text-secondary sticky-top">
@@ -950,7 +948,7 @@
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-1.5">
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-0">
-                                <i class="bi bi-box-seam me-1 text-secondary"></i> Daftar Barang Pesanan (<span x-text="editOrder.items ? editOrder.items.length : 0"></span> item)
+                                Daftar Barang Pesanan (<span x-text="editOrder.items ? editOrder.items.length : 0"></span> item)
                             </label>
                             <template x-if="editOrder.is_editable">
                                 <button type="button" @click="addItemRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold">

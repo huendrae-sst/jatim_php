@@ -268,7 +268,7 @@
         <!-- Card Header -->
         <div class="card-header border-bottom d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 py-3 px-4">
             <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                <i class="bi bi-arrow-left-right text-danger me-2"></i> Daftar Switching Stock Antar-Unit
+                Daftar Switching Stock Antar-Unit
             </h3>
             <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
                 <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">{{ $switchings->total() }} Data Ditemukan</span>
@@ -426,7 +426,7 @@
                                 @if($sw->items->count() > 1)
                                     <div class="d-flex align-items-center gap-1.5 mb-1">
                                         <span class="badge bg-danger-subtle text-danger-emphasis fs-9 fw-bold">
-                                            <i class="bi bi-boxes me-1"></i>{{ $sw->items->count() }} Jenis Barang
+                                            {{ $sw->items->count() }} Jenis Barang
                                         </span>
                                     </div>
                                     <div class="fs-9 text-secondary text-truncate" style="max-width: 240px;" title="{{ $sw->items->map(fn($i) => ($i->item->name ?? '-') . ' (' . $i->qty_requested . ' ' . ($i->item->uom ?? '') . ')')->implode(', ') }}">
@@ -463,15 +463,15 @@
                             <td class="text-center">
                                 @if($sw->status === 'APPROVED' || $sw->status === 'COMPLETED')
                                     <span class="badge bg-success-subtle text-success-emphasis fs-9 py-1 px-2">
-                                        <i class="bi bi-check-circle me-1"></i>{{ $sw->status }}
+                                        {{ $sw->status }}
                                     </span>
                                 @elseif($sw->status === 'PROPOSED')
                                     <span class="badge bg-warning-subtle text-warning-emphasis fs-9 py-1 px-2">
-                                        <i class="bi bi-clock me-1"></i>{{ $sw->status }}
+                                        {{ $sw->status }}
                                     </span>
                                 @elseif($sw->status === 'REJECTED' || $sw->status === 'CANCELLED')
                                     <span class="badge bg-danger-subtle text-danger-emphasis fs-9 py-1 px-2">
-                                        <i class="bi bi-x-circle me-1"></i>{{ $sw->status }}
+                                        {{ $sw->status }}
                                     </span>
                                 @else
                                     <span class="badge bg-secondary-subtle text-secondary-emphasis fs-9 py-1 px-2">

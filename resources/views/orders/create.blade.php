@@ -33,7 +33,7 @@
             @csrf
             <div class="card-header border-bottom d-flex flex-column flex-sm-row sm:items-center justify-content-between gap-2 py-3 px-3 px-md-4">
                 <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                    <i class="bi bi-pencil-square text-danger me-1"></i> Informasi Permintaan & Logistik
+                    Informasi Permintaan & Logistik
                 </h3>
                 <div class="card-tools w-100 w-sm-auto">
                     <a href="{{ route('orders.index') }}" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center justify-content-center gap-1 w-100 w-sm-auto">
@@ -83,7 +83,7 @@
                 <div class="border-top pt-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="fw-bold fs-6 mb-0 text-body">
-                            <i class="bi bi-box-seam me-1 text-danger"></i> Daftar Barang yang Diminta
+                            Daftar Barang yang Diminta
                         </h5>
                         <button type="button" @click="addRow()" class="btn btn-sm btn-outline-danger fw-semibold">
                             <i class="bi bi-plus-circle me-1"></i> Tambah Item

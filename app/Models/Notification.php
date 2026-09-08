@@ -26,4 +26,48 @@ class Notification extends Model
     {
         return $this->belongsTo(Organization::class, 'target_organization_id');
     }
+
+    public function scopeForUser($query, User $user)
+    {
+        return $query->where(function ($q) use ($user) {
+            // 1. Directly targeted to this user
+            $q->where('user_id', $user->id);
+
+            // 2. Targeted to role (and optionally organization)
+            $q->orWhere(function ($sub) use ($user) {
+                $sub->where(function ($u) use ($user) {
+                    $u->whereNull('user_id')->orWhere('user_id', $user->id);
+                });
+
+                if (! $user->isSuperAdmin()) {
+                    $sub->where('target_role', $user->role)
+                        ->where(function ($orgSub) use ($user) {
+                            $orgSub->whereNull('target_organization_id');
+                            if ($user->organization_id) {
+                                $orgSub->orWhere('target_organization_id', $user->organization_id);
+                            }
+                        });
+                } else {
+                    $sub->whereNotNull('target_role');
+                }
+            });
+
+            // 3. Global broadcast announcements (no user_id and no target_role)
+            $q->orWhere(function ($sub) use ($user) {
+                $sub->whereNull('user_id')
+                    ->whereNull('target_role')
+                    ->where(function ($orgSub) use ($user) {
+                        $orgSub->whereNull('target_organization_id');
+                        if ($user->organization_id) {
+                            $orgSub->orWhere('target_organization_id', $user->organization_id);
+                        }
+                    });
+            });
+        });
+    }
+
+    public function scopeUnreadForUser($query, User $user)
+    {
+        return $query->forUser($user)->where('is_read', false);
+    }
 }

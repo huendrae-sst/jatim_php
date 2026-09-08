@@ -17,9 +17,6 @@
                 {{ $header }}
             @else
                 <div class="d-flex align-items-center gap-2 min-w-0">
-                    @if($icon)
-                        <i class="{{ $icon }} text-danger fs-5 flex-shrink-0"></i>
-                    @endif
                     <div class="text-truncate">
                         @if($title)
                             <h3 class="card-title fw-semibold mb-0 fs-6">{{ $title }}</h3>

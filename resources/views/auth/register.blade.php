@@ -220,7 +220,7 @@
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title fs-6 fw-bold" id="termsModalLabel"><i class="bi bi-file-earmark-text text-danger me-1"></i> Syarat & Ketentuan Penggunaan</h5>
+                    <h5 class="modal-title fs-6 fw-bold" id="termsModalLabel">Syarat & Ketentuan Penggunaan</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body fs-7 text-secondary">

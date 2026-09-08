@@ -3,35 +3,91 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" class="text-decoration-none text-danger">Home</a></li>
-    <li class="breadcrumb-item">Logistik</li>
+    <li class="breadcrumb-item">Logistik & Distribusi</li>
     <li class="breadcrumb-item active" aria-current="page">Distribusi & Ekspedisi</li>
 @endsection
 
 @section('content')
-<div class="space-y-4" x-data="{ dispatchModal: false, selectedOrder: null }">
+<div x-data="{
+    dispatchModalOpen: false,
+    viewModalOpen: false,
+    selectedOrder: null,
+    selectedShipment: null,
+    readyOrdersList: {{ Js::from($readyOrders) }},
+    allCouriers: {{ Js::from($couriers) }},
 
-    <!-- Section 1: Ready to Ship Orders -->
+    openCreateManifestModal(order = null) {
+        if (order) {
+            this.selectedOrder = order;
+        } else if (this.readyOrdersList.length > 0 && !this.selectedOrder) {
+            this.selectedOrder = this.readyOrdersList[0];
+        }
+        this.dispatchModalOpen = true;
+    },
+
+    openViewShipmentModal(shp) {
+        this.selectedShipment = shp;
+        this.viewModalOpen = true;
+    },
+
+    onOrderSelect(event) {
+        const orderId = event.target.value;
+        this.selectedOrder = this.readyOrdersList.find(o => o.id == orderId) || null;
+    }
+}" class="space-y-4">
+
+    <!-- Flash Alerts -->
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show d-flex align-items-center py-2 px-3 fs-7 mb-3 shadow-xs" role="alert">
+            <i class="bi bi-check-circle-fill me-2 fs-6"></i>
+            <div>{{ session('success') }}</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center py-2 px-3 fs-7 mb-3 shadow-xs" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
+            <div>{{ session('error') }}</div>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    @if($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show py-2 px-3 fs-7 mb-3 shadow-xs" role="alert">
+            <div class="fw-bold mb-1"><i class="bi bi-exclamation-circle-fill me-1"></i> Terdapat kesalahan pengisian:</div>
+            <ul class="mb-0 ps-3">
+                @foreach($errors->all() as $err)
+                    <li>{{ $err }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    @endif
+
+    <!-- Section 1: Order Siap Diberangkatkan (READY_TO_SHIP) -->
     @if($readyOrders->count() > 0)
-        <div class="card card-outline card-danger shadow-xs mb-3">
-            <div class="card-header p-3 border-bottom d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-box-seam text-danger fs-5"></i>
-                    <h3 class="card-title fw-bold text-slate-800 fs-6 mb-0">
-                        Order Siap Diberangkatkan (Status: READY_TO_SHIP)
-                        <span class="badge bg-danger rounded-pill ms-1">{{ $readyOrders->count() }} Paket</span>
-                    </h3>
+        <div class="card card-outline card-warning shadow-xs mb-3">
+            <div class="card-header border-bottom d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 py-2.5 px-4 bg-warning-subtle">
+                <h4 class="card-title fs-7 fw-bold mb-0 text-warning-emphasis d-flex align-items-center">
+                    Order Siap Diberangkatkan (Status: READY_TO_SHIP)
+                </h4>
+                <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
+                    <span class="badge bg-warning text-dark font-monospace fs-8">
+                        {{ $readyOrders->count() }} Paket Siap Kirim
+                    </span>
                 </div>
             </div>
 
             <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle mb-0 fs-7">
-                    <thead class="table-light text-secondary text-uppercase fs-8 border-bottom">
+                <table class="table table-hover table-striped align-middle mb-0 text-nowrap fs-8">
+                    <thead class="table-light text-secondary text-uppercase fs-9">
                         <tr>
-                            <th class="ps-3 py-2" style="width: 170px;">No. Order & Tanggal</th>
-                            <th class="py-2" style="width: 240px;">Tujuan Cabang / Unit</th>
-                            <th class="py-2">Alamat Pengiriman</th>
-                            <th class="py-2 text-center" style="width: 150px;">Koli & Berat Packing</th>
-                            <th class="pe-3 py-2 text-center" style="width: 90px;">Dispatch</th>
+                            <th class="ps-4 py-2.5" style="width: 170px;">No. Order & Tanggal</th>
+                            <th class="py-2.5" style="width: 220px;">Tujuan Cabang / Unit</th>
+                            <th class="py-2.5">Alamat Pengiriman</th>
+                            <th class="py-2.5 text-center" style="width: 150px;">Koli & Berat</th>
+                            <th class="pe-4 py-2.5 text-center" style="min-width: 90px;">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -40,28 +96,44 @@
                                 $lastPacking = $ord->packings->last();
                                 $koli = $lastPacking->koli_count ?? 1;
                                 $weight = $lastPacking->total_weight_kg ?? 1;
+                                $dim = $lastPacking->dimensions_cm ?? '-';
+                                $ordData = [
+                                    'id' => $ord->id,
+                                    'order_number' => $ord->order_number,
+                                    'order_date' => $ord->order_date ? $ord->order_date->format('d/m/Y') : '-',
+                                    'requesting_organization' => [
+                                        'name' => $ord->requestingOrganization->name ?? '-',
+                                        'city' => $ord->requestingOrganization->city ?? '-',
+                                        'address' => $ord->requestingOrganization->address ?? '-',
+                                    ],
+                                    'koli_count' => $koli,
+                                    'total_weight_kg' => $weight,
+                                    'dimensions_cm' => $dim,
+                                ];
                             @endphp
                             <tr>
-                                <td class="ps-3">
-                                    <span class="font-monospace fw-bold text-slate-900 d-block">{{ $ord->order_number }}</span>
-                                    <small class="text-muted fs-8">{{ $ord->order_date ? $ord->order_date->format('d M Y') : '-' }}</small>
+                                <td class="ps-4 font-monospace">
+                                    <span class="fw-bold text-danger d-block">{{ $ord->order_number }}</span>
+                                    <span class="text-secondary fs-9">{{ $ord->order_date ? $ord->order_date->format('d/m/Y') : '-' }}</span>
                                 </td>
                                 <td>
-                                    <span class="fw-semibold text-slate-800 d-block">{{ $ord->requestingOrganization->name }}</span>
-                                    <small class="text-muted fs-8">{{ $ord->requestingOrganization->city ?? '-' }}</small>
+                                    <span class="fw-semibold text-body d-block">{{ $ord->requestingOrganization->name }}</span>
+                                    <span class="text-secondary fs-9"><i class="bi bi-geo-alt me-1"></i>{{ $ord->requestingOrganization->city ?? '-' }}</span>
                                 </td>
                                 <td>
-                                    <span class="text-slate-700 fs-8">{{ Str::limit($ord->requestingOrganization->address ?? '-', 60) }}</span>
+                                    <span class="text-secondary fs-9 text-truncate d-inline-block" style="max-width: 320px;" title="{{ $ord->requestingOrganization->address ?? '-' }}">
+                                        {{ Str::limit($ord->requestingOrganization->address ?? '-', 65) }}
+                                    </span>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge text-bg-light border font-monospace fs-8">
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-8">
                                         {{ $koli }} Koli ({{ $weight }} kg)
                                     </span>
                                 </td>
-                                <td class="pe-3 text-center">
+                                <td class="pe-4 text-center">
                                     <button type="button" 
-                                            @click="selectedOrder = {{ Js::from($ord) }}; dispatchModal = true" 
-                                            class="btn-action-icon text-danger" 
+                                            @click="openCreateManifestModal({{ json_encode($ordData) }})" 
+                                            class="btn-action-icon text-danger btn btn-sm btn-outline-danger py-0.5 px-1.5 fs-9 fw-bold" 
                                             title="Terbitkan Manifest & Dispatch Ekspedisi">
                                         <i class="bi bi-truck"></i>
                                     </button>
@@ -74,84 +146,209 @@
         </div>
     @endif
 
-    <!-- Section 2: Shipments Table -->
-    <div class="card card-outline card-danger shadow-xs mb-0">
-        <div class="card-header p-3 border-bottom d-flex align-items-center justify-content-between">
-            <div class="d-flex align-items-center gap-2">
-                <i class="bi bi-truck text-danger fs-5"></i>
-                <h3 class="card-title fw-bold text-slate-800 fs-6 mb-0">
-                    Daftar Manifest Pengiriman (Shipments)
-                </h3>
+    <!-- Section 2: Main Shipments Card -->
+    <div class="card card-outline card-danger shadow-xs">
+        <!-- Card Header -->
+        <div class="card-header border-bottom d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 py-3 px-4">
+            <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
+                Daftar Manifest Pengiriman (Shipments)
+            </h3>
+            <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
+                <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">
+                    {{ $shipments->total() }} Manifest Diterbitkan
+                </span>
             </div>
         </div>
 
+        <!-- Filter & Search Toolbar -->
+        <div class="card-body p-3 bg-body-tertiary border-bottom">
+            <form action="{{ route('distribution.shipments.index') }}" method="GET">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
+                <div class="row g-2 align-items-center">
+                    <!-- Cabang / Unit Kerja Filter -->
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-building"></i></span>
+                            <select name="organization_id" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
+                                <option value="">Semua Cabang / Unit</option>
+                                @foreach($organizations as $org)
+                                    <option value="{{ $org->id }}" {{ request('organization_id') == $org->id ? 'selected' : '' }}>
+                                        [{{ $org->code }}] {{ $org->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Ekspedisi / Kurir Filter -->
+                    <div class="col-12 col-sm-6 col-md-2">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-truck"></i></span>
+                            <select name="courier_id" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
+                                <option value="">Semua Ekspedisi</option>
+                                @foreach($couriers as $cr)
+                                    <option value="{{ $cr->id }}" {{ request('courier_id') == $cr->id ? 'selected' : '' }}>
+                                        {{ $cr->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="col-12 col-sm-6 col-md-2">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-toggle-on"></i></span>
+                            <select name="status" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
+                                <option value="">Semua Status</option>
+                                <option value="READY_TO_SHIP" {{ request('status') === 'READY_TO_SHIP' ? 'selected' : '' }}>READY_TO_SHIP</option>
+                                <option value="DISPATCHED" {{ request('status') === 'DISPATCHED' ? 'selected' : '' }}>DISPATCHED</option>
+                                <option value="IN_TRANSIT" {{ request('status') === 'IN_TRANSIT' ? 'selected' : '' }}>IN_TRANSIT</option>
+                                <option value="DELIVERED" {{ request('status') === 'DELIVERED' ? 'selected' : '' }}>DELIVERED</option>
+                                <option value="RECEIVED" {{ request('status') === 'RECEIVED' ? 'selected' : '' }}>RECEIVED</option>
+                                <option value="RETURNED" {{ request('status') === 'RETURNED' ? 'selected' : '' }}>RETURNED</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Reset Button -->
+                    @if(request('search') || request('status') || request('courier_id') || request('organization_id'))
+                        <div class="col-auto">
+                            <a href="{{ route('distribution.shipments.index') }}" class="btn btn-sm btn-outline-danger fs-8" title="Reset Filter">
+                                <i class="bi bi-x-circle me-1"></i> Reset
+                            </a>
+                        </div>
+                    @endif
+
+                    <!-- Search Bar -->
+                    <div class="col-12 col-md ms-md-auto">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-search"></i></span>
+                            <input type="text" 
+                                   name="search" 
+                                   value="{{ request('search') }}" 
+                                   placeholder="Cari no. manifest, resi, order, cabang..." 
+                                   class="form-control form-control-sm border-start-0 border-end-0 fs-8">
+                            <button type="submit" class="btn btn-sm btn-danger fw-bold fs-8 shadow-xs">Cari</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- Shipments Table -->
         <div class="table-responsive">
-            <table class="table table-striped table-hover align-middle mb-0 fs-7">
-                <thead class="table-light text-secondary text-uppercase fs-8 border-bottom">
+            <table class="table table-hover table-striped align-middle mb-0 text-nowrap fs-8">
+                <thead class="table-light text-secondary text-uppercase fs-9">
                     <tr>
-                        <th class="ps-3 py-2" style="width: 170px;">No. Manifest & Tanggal</th>
-                        <th class="py-2" style="width: 160px;">No. Order</th>
-                        <th class="py-2" style="width: 220px;">Tujuan Cabang</th>
-                        <th class="py-2" style="width: 200px;">Ekspedisi & No. Resi</th>
-                        <th class="py-2 text-center" style="width: 130px;">Koli & Berat</th>
-                        <th class="py-2 text-center" style="width: 130px;">Status Pengiriman</th>
-                        <th class="pe-3 py-2 text-center" style="width: 100px;">Cetak Dokumen</th>
+                        <th class="ps-4 py-3" style="width: 170px;">No. Manifest & Tanggal</th>
+                        <th class="py-3" style="width: 160px;">No. Order</th>
+                        <th class="py-3" style="width: 200px;">Tujuan Cabang</th>
+                        <th class="py-3" style="width: 200px;">Ekspedisi & No. Resi</th>
+                        <th class="py-3 text-center" style="width: 120px;">Koli & Berat</th>
+                        <th class="py-3 text-center" style="width: 130px;">Status</th>
+                        <th class="pe-4 py-3 text-center" style="min-width: 140px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
                     @forelse($shipments as $shp)
+                        @php
+                            $shpData = [
+                                'id' => $shp->id,
+                                'manifest_number' => $shp->manifest_number,
+                                'tracking_number' => $shp->tracking_number,
+                                'service_type' => $shp->service_type,
+                                'status' => $shp->status,
+                                'shipping_cost' => $shp->shipping_cost,
+                                'eta_date' => $shp->eta_date ? $shp->eta_date->format('d/m/Y') : '-',
+                                'created_at' => $shp->created_at ? $shp->created_at->format('d/m/Y H:i') : '-',
+                                'order_number' => $shp->order->order_number ?? '-',
+                                'branch_name' => $shp->order->requestingOrganization->name ?? '-',
+                                'courier_name' => $shp->courier->name ?? 'Kurir Internal',
+                                'dispatcher_name' => $shp->dispatcher->name ?? '-',
+                                'koli_count' => $shp->koli_count,
+                                'total_weight_kg' => $shp->total_weight_kg,
+                            ];
+                        @endphp
                         <tr>
-                            <td class="ps-3">
-                                <span class="font-monospace fw-bold text-danger d-block">{{ $shp->manifest_number }}</span>
-                                <small class="text-muted fs-8">{{ $shp->created_at ? $shp->created_at->format('d M Y H:i') : '-' }}</small>
+                            <!-- No. Manifest & Tanggal -->
+                            <td class="ps-4 font-monospace">
+                                <span class="fw-bold text-danger d-block">{{ $shp->manifest_number }}</span>
+                                <span class="text-secondary fs-9">{{ $shp->created_at ? $shp->created_at->format('d/m/Y H:i') : '-' }}</span>
                             </td>
+
+                            <!-- No. Order -->
+                            <td class="font-monospace">
+                                <span class="fw-semibold text-body">{{ $shp->order->order_number ?? '-' }}</span>
+                            </td>
+
+                            <!-- Tujuan Cabang -->
                             <td>
-                                <span class="font-monospace fw-semibold text-slate-800">{{ $shp->order->order_number ?? '-' }}</span>
+                                <div class="fw-semibold text-body">{{ $shp->order->requestingOrganization->name ?? '-' }}</div>
+                                <div class="fs-9 text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ $shp->order->requestingOrganization->city ?? '-' }}</div>
                             </td>
+
+                            <!-- Ekspedisi & No. Resi -->
                             <td>
-                                <span class="fw-semibold text-slate-800 d-block">{{ $shp->order->requestingOrganization->name ?? '-' }}</span>
-                                <small class="text-muted fs-8">{{ $shp->order->requestingOrganization->city ?? '-' }}</small>
+                                <div class="fw-semibold text-body">{{ $shp->courier->name ?? 'Kurir Internal' }}</div>
+                                <div class="fs-9 text-secondary font-monospace">Resi: {{ $shp->tracking_number }}</div>
                             </td>
-                            <td>
-                                <span class="fw-semibold text-slate-800 d-block">{{ $shp->courier->name ?? 'Kurir Internal' }}</span>
-                                <small class="font-monospace text-muted fs-8">Resi: {{ $shp->tracking_number }}</small>
-                            </td>
+
+                            <!-- Koli & Berat -->
                             <td class="text-center">
-                                <span class="badge text-bg-light border font-monospace fs-8">
+                                <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-8">
                                     {{ $shp->koli_count }} Koli ({{ $shp->total_weight_kg }} kg)
                                 </span>
                             </td>
+
+                            <!-- Status Pengiriman -->
                             <td class="text-center">
-                                @php
-                                    $badgeClass = match($shp->status) {
-                                        'DELIVERED', 'RECEIVED' => 'text-bg-success',
-                                        'IN_TRANSIT', 'OUT_FOR_DELIVERY' => 'text-bg-info',
-                                        'READY_TO_SHIP', 'DISPATCHED' => 'text-bg-primary',
-                                        'DELIVERY_FAILED', 'RETURNED' => 'text-bg-danger',
-                                        default => 'text-bg-secondary',
-                                    };
-                                    $statusLabel = match($shp->status) {
-                                        'DELIVERED' => 'Terkirim',
-                                        'IN_TRANSIT' => 'Dalam Perjalanan',
-                                        'OUT_FOR_DELIVERY' => 'Kurir Mengantar',
-                                        'DISPATCHED' => 'Diberangkatkan',
-                                        'READY_TO_SHIP' => 'Siap Kirim',
-                                        default => str_replace('_', ' ', $shp->status),
-                                    };
-                                @endphp
-                                <span class="badge {{ $badgeClass }} fs-8">{{ $statusLabel }}</span>
+                                @if(in_array($shp->status, ['DELIVERED', 'RECEIVED']))
+                                    <span class="badge bg-success-subtle text-success-emphasis fs-9 py-1 px-2">
+                                        {{ $shp->status }}
+                                    </span>
+                                @elseif(in_array($shp->status, ['IN_TRANSIT', 'OUT_FOR_DELIVERY']))
+                                    <span class="badge bg-info-subtle text-info-emphasis fs-9 py-1 px-2">
+                                        {{ $shp->status }}
+                                    </span>
+                                @elseif(in_array($shp->status, ['READY_TO_SHIP', 'DISPATCHED']))
+                                    <span class="badge bg-primary-subtle text-primary-emphasis fs-9 py-1 px-2">
+                                        {{ $shp->status }}
+                                    </span>
+                                @elseif(in_array($shp->status, ['DELIVERY_FAILED', 'RETURNED']))
+                                    <span class="badge bg-danger-subtle text-danger-emphasis fs-9 py-1 px-2">
+                                        {{ $shp->status }}
+                                    </span>
+                                @else
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis fs-9 py-1 px-2">
+                                        {{ $shp->status }}
+                                    </span>
+                                @endif
                             </td>
-                            <td class="pe-3 text-center">
+
+                            <!-- Aksi (Detail, Cetak Manifest, Cetak Label) -->
+                            <td class="pe-4 text-center">
                                 <div class="d-inline-flex align-items-center gap-1">
+                                    <!-- View Detail Modal Button -->
+                                    <button type="button" 
+                                            @click="openViewShipmentModal({{ json_encode($shpData) }})" 
+                                            class="btn btn-sm btn-outline-secondary py-0.5 px-1.5 fs-9" 
+                                            title="Lihat Detail Manifest">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+
+                                    <!-- Print Manifest -->
                                     <a href="{{ route('distribution.manifest.print', $shp->id) }}" 
                                        target="_blank" 
-                                       class="btn-action-icon text-secondary" 
+                                       class="btn-action-icon btn btn-sm btn-outline-secondary py-0.5 px-1.5 fs-9" 
                                        title="Cetak Lembar Manifest Ekspedisi">
                                         <i class="bi bi-printer"></i>
                                     </a>
+
+                                    <!-- Print Label -->
                                     <a href="{{ route('distribution.label.print', $shp->id) }}" 
                                        target="_blank" 
-                                       class="btn-action-icon text-primary" 
+                                       class="btn-action-icon btn btn-sm btn-outline-primary py-0.5 px-1.5 fs-9" 
                                        title="Cetak Label Koli & QR Code">
                                         <i class="bi bi-qr-code"></i>
                                     </a>
@@ -160,9 +357,10 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="bi bi-truck fs-1 text-secondary opacity-50 d-block mb-2"></i>
-                                <span class="fw-semibold">Belum ada dokumen pengiriman (manifest) yang dicatat.</span>
+                            <td colspan="7" class="text-center py-5 text-secondary">
+                                <i class="bi bi-truck fs-1 d-block mb-2 text-secondary-subtle"></i>
+                                <p class="fw-bold mb-1">Belum ada dokumen manifest pengiriman</p>
+                                <p class="fs-8 text-muted mb-0">Order yang telah selesai dipacking akan muncul pada antrean siap kirim untuk diterbitkan manifest.</p>
                             </td>
                         </tr>
                     @endforelse
@@ -170,125 +368,230 @@
             </table>
         </div>
 
-        <div class="p-3 border-top">
-            <x-pagination-footer :paginator="$shipments" />
-        </div>
+        <x-pagination-footer :paginator="$shipments" :perPage="$perPage" />
     </div>
 
-    <!-- Dispatch Shipment Modal (Standard Bank Jatim) -->
-    <div x-show="dispatchModal" 
-         x-cloak 
+    <!-- ======================================================== -->
+    <!-- MODAL 1: TERBITKAN MANIFEST & DISPATCH EKSPEDISI         -->
+    <!-- ======================================================== -->
+    <div x-show="dispatchModalOpen" 
          class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4" 
-         style="display: none;"
-         @keydown.escape.window="dispatchModal = false">
-        
-        <div class="bg-white rounded-3 shadow-xl max-w-lg w-full flex flex-col overflow-hidden" 
-             @click.outside="dispatchModal = false">
+         x-cloak 
+         style="display: none; z-index: 1050;">
+        <div @click.away="dispatchModalOpen = false" 
+             class="card shadow-2xl border border-secondary-subtle max-w-xl w-full overflow-hidden" 
+             style="background-color: var(--bs-body-bg); color: var(--bs-body-color); max-height: 90vh; display: flex; flex-direction: column;">
             
-            <!-- Modal Header -->
-            <div class="bg-danger text-white px-4 py-3 d-flex align-items-center justify-content-between">
+            <div class="card-header bg-danger text-white py-2 px-4 d-flex align-items-center justify-content-between flex-shrink-0">
                 <div class="d-flex align-items-center gap-2">
-                    <i class="bi bi-truck fs-5"></i>
-                    <div>
-                        <h5 class="modal-title mb-0 fs-6 fw-bold">Penerbitan Manifest & Dispatch Ekspedisi</h5>
-                        <small class="text-white-50 fs-8">Penetapan kurir rekanan dan nomor tracking kiriman</small>
-                    </div>
+                    <i class="bi bi-truck fs-6"></i>
+                    <h5 class="modal-title fs-6 fw-bold mb-0">Penerbitan Manifest & Dispatch Ekspedisi</h5>
                 </div>
-                <button type="button" class="btn-close btn-close-white" @click="dispatchModal = false" aria-label="Close"></button>
+                <button type="button" @click="dispatchModalOpen = false" class="btn-close btn-close-white" aria-label="Close"></button>
             </div>
 
-            <!-- Modal Form Body -->
-            <form action="{{ route('distribution.shipments.store') }}" method="POST">
+            <form action="{{ route('distribution.shipments.store') }}" method="POST" class="d-flex flex-column h-100 m-0 overflow-hidden">
                 @csrf
-                <input type="hidden" name="order_id" :value="selectedOrder?.id">
-
-                <div class="p-4 space-y-3">
+                <div class="card-body p-3.5 fs-8 overflow-y-auto space-y-3" style="flex: 1 1 auto;">
                     
-                    <!-- Order Info Box -->
-                    <div class="p-3 bg-light rounded-2 border">
-                        <div class="row g-2">
+                    <!-- Section 1: Order Selection & Info Box -->
+                    <div class="border rounded-2 p-3 bg-body-tertiary">
+                        <div class="fw-bold text-danger text-uppercase fs-9 mb-2">1. Paket Order yang Diberangkatkan</div>
+                        
+                        <template x-if="readyOrdersList.length === 0">
+                            <div class="alert alert-warning py-2 px-3 fs-8 mb-0" role="alert">
+                                <i class="bi bi-exclamation-circle me-1"></i> Tidak ada order dengan status READY_TO_SHIP yang siap diterbitkan manifest.
+                            </div>
+                        </template>
+
+                        <template x-if="readyOrdersList.length > 0">
+                            <div>
+                                <label class="form-label fs-8 fw-semibold mb-1">Pilih Nomor Order <span class="text-danger">*</span></label>
+                                <select name="order_id" @change="onOrderSelect($event)" class="form-select form-select-sm fs-8 mb-2" required>
+                                    <template x-for="ord in readyOrdersList" :key="ord.id">
+                                        <option :value="ord.id" 
+                                                :selected="selectedOrder && selectedOrder.id == ord.id"
+                                                x-text="ord.order_number + ' - ' + (ord.requesting_organization?.name || '-')">
+                                        </option>
+                                    </template>
+                                </select>
+
+                                <div class="bg-body p-2.5 rounded border fs-8">
+                                    <div class="row g-1.5">
+                                        <div class="col-6">
+                                            <span class="fs-9 text-secondary d-block">Tujuan Cabang:</span>
+                                            <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.name || '-'"></span>
+                                        </div>
+                                        <div class="col-6">
+                                            <span class="fs-9 text-secondary d-block">Kota Tujuan:</span>
+                                            <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.city || '-'"></span>
+                                        </div>
+                                        <div class="col-12 mt-1 pt-1 border-top">
+                                            <span class="fs-9 text-secondary d-block">Alamat Pengiriman:</span>
+                                            <span class="text-body fs-9" x-text="selectedOrder?.requesting_organization?.address || '-'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- Section 2: Jasa Ekspedisi & Detail Pengiriman -->
+                    <div class="border rounded-2 p-3 bg-body-tertiary">
+                        <div class="fw-bold text-danger text-uppercase fs-9 mb-2">2. Informasi Ekspedisi & Tracking</div>
+                        
+                        <div class="mb-2.5">
+                            <label class="form-label fs-8 fw-semibold mb-1">Jasa Ekspedisi / Kurir <span class="text-danger">*</span></label>
+                            <select name="courier_id" required class="form-select form-select-sm fs-8">
+                                @foreach($couriers as $cr)
+                                    <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="row g-2.5 mb-2.5">
                             <div class="col-6">
-                                <span class="fs-8 text-muted d-block">Nomor Order</span>
-                                <span class="font-monospace fw-bold text-danger" x-text="selectedOrder?.order_number"></span>
+                                <label class="form-label fs-8 fw-semibold mb-1">Layanan Kurir <span class="text-danger">*</span></label>
+                                <input type="text" 
+                                       name="service_type" 
+                                       value="REGULER" 
+                                       required 
+                                       class="form-control form-control-sm font-monospace fs-8">
                             </div>
                             <div class="col-6">
-                                <span class="fs-8 text-muted d-block">Tujuan Cabang</span>
-                                <span class="fw-semibold text-slate-800" x-text="selectedOrder?.requesting_organization?.name"></span>
+                                <label class="form-label fs-8 fw-semibold mb-1">Nomor Resi / AWB <span class="text-danger">*</span></label>
+                                <input type="text" 
+                                       name="tracking_number" 
+                                       value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" 
+                                       required 
+                                       class="form-control form-control-sm font-monospace fw-bold fs-8">
                             </div>
                         </div>
-                    </div>
 
-                    <div>
-                        <label class="form-label fs-7 fw-bold text-slate-800">
-                            Jasa Ekspedisi / Kurir <span class="text-danger">*</span>
-                        </label>
-                        <select name="courier_id" required class="form-select form-select-sm">
-                            @foreach($couriers as $cr)
-                                <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <label class="form-label fs-7 fw-bold text-slate-800">
-                                Layanan Kurir <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" 
-                                   name="service_type" 
-                                   value="REGULER" 
-                                   required 
-                                   class="form-control form-control-sm font-monospace">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fs-7 fw-bold text-slate-800">
-                                Nomor Resi / AWB <span class="text-danger">*</span>
-                            </label>
-                            <input type="text" 
-                                   name="tracking_number" 
-                                   value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" 
-                                   required 
-                                   class="form-control form-control-sm font-monospace fw-bold">
-                        </div>
-                    </div>
-
-                    <div class="row g-3">
-                        <div class="col-6">
-                            <label class="form-label fs-7 fw-bold text-slate-800">
-                                Ongkos Kirim (Rp) <span class="text-danger">*</span>
-                            </label>
-                            <input type="number" 
-                                   name="shipping_cost" 
-                                   value="125000" 
-                                   min="0" 
-                                   required 
-                                   class="form-control form-control-sm font-monospace fw-bold">
-                        </div>
-                        <div class="col-6">
-                            <label class="form-label fs-7 fw-bold text-slate-800">
-                                Estimasi Tiba (ETA) <span class="text-danger">*</span>
-                            </label>
-                            <input type="date" 
-                                   name="eta_date" 
-                                   value="{{ date('Y-m-d', strtotime('+2 days')) }}" 
-                                   required 
-                                   class="form-control form-control-sm font-monospace">
+                        <div class="row g-2.5">
+                            <div class="col-6">
+                                <label class="form-label fs-8 fw-semibold mb-1">Ongkos Kirim (Rp) <span class="text-danger">*</span></label>
+                                <input type="number" 
+                                       name="shipping_cost" 
+                                       value="125000" 
+                                       min="0" 
+                                       required 
+                                       class="form-control form-control-sm font-monospace fw-bold fs-8">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fs-8 fw-semibold mb-1">Estimasi Tiba (ETA) <span class="text-danger">*</span></label>
+                                <input type="date" 
+                                       name="eta_date" 
+                                       value="{{ date('Y-m-d', strtotime('+2 days')) }}" 
+                                       required 
+                                       class="form-control form-control-sm font-monospace fs-8">
+                            </div>
                         </div>
                     </div>
 
                 </div>
 
                 <!-- Modal Footer -->
-                <div class="px-4 py-3 bg-light border-top d-flex align-items-center justify-content-end gap-2">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="dispatchModal = false">
+                <div class="card-footer bg-body-tertiary border-top py-2.5 px-4 d-flex align-items-center justify-content-end gap-2 flex-shrink-0">
+                    <button type="button" class="btn btn-sm btn-outline-secondary fs-8" @click="dispatchModalOpen = false">
                         Batal
                     </button>
-                    <button type="submit" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
+                    <button type="submit" 
+                            :disabled="readyOrdersList.length === 0"
+                            class="btn btn-sm btn-danger fw-bold fs-8 shadow-xs d-inline-flex align-items-center gap-1">
                         <i class="bi bi-send-check"></i>
                         <span>Terbitkan Manifest & Dispatch</span>
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- MODAL 2: LIHAT DETAIL MANIFEST PENGIRIMAN                -->
+    <!-- ======================================================== -->
+    <div x-show="viewModalOpen" 
+         class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4" 
+         x-cloak 
+         style="display: none; z-index: 1050;">
+        <div @click.away="viewModalOpen = false" 
+             class="card shadow-2xl border border-secondary-subtle max-w-lg w-full overflow-hidden" 
+             style="background-color: var(--bs-body-bg); color: var(--bs-body-color); max-height: 90vh; display: flex; flex-direction: column;">
+            
+            <div class="card-header bg-danger text-white py-2 px-4 d-flex align-items-center justify-content-between flex-shrink-0">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-truck fs-6"></i>
+                    <h5 class="modal-title fs-6 fw-bold mb-0">Detail Manifest Pengiriman</h5>
+                </div>
+                <button type="button" @click="viewModalOpen = false" class="btn-close btn-close-white" aria-label="Close"></button>
+            </div>
+
+            <div class="card-body p-3.5 fs-8 overflow-y-auto space-y-3" style="flex: 1 1 auto;">
+                <div class="border rounded-2 p-3 bg-body-tertiary">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Nomor Manifest:</span>
+                            <span class="font-monospace fw-bold text-danger fs-7" x-text="selectedShipment?.manifest_number"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Tanggal Terbit:</span>
+                            <span class="fw-semibold text-body" x-text="selectedShipment?.created_at"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Nomor Order:</span>
+                            <span class="font-monospace fw-semibold text-body" x-text="selectedShipment?.order_number"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Tujuan Cabang:</span>
+                            <span class="fw-semibold text-body" x-text="selectedShipment?.branch_name"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Ekspedisi / Kurir:</span>
+                            <span class="fw-semibold text-body" x-text="selectedShipment?.courier_name"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Nomor Resi / AWB:</span>
+                            <span class="font-monospace fw-bold text-body" x-text="selectedShipment?.tracking_number"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Paket Fisik:</span>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace" x-text="selectedShipment?.koli_count + ' Koli (' + selectedShipment?.total_weight_kg + ' kg)'"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Estimasi Tiba (ETA):</span>
+                            <span class="font-monospace text-body" x-text="selectedShipment?.eta_date"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Petugas Dispatch:</span>
+                            <span class="fw-semibold text-body" x-text="selectedShipment?.dispatcher_name"></span>
+                        </div>
+                        <div class="col-6">
+                            <span class="fs-9 text-secondary d-block">Status Kiriman:</span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis font-monospace" x-text="selectedShipment?.status"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer bg-body-tertiary border-top py-2.5 px-4 d-flex align-items-center justify-content-between flex-shrink-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary fs-8" @click="viewModalOpen = false">
+                    Tutup
+                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <a :href="'{{ url('distribution/manifest') }}/' + selectedShipment?.id + '/print'" 
+                       target="_blank" 
+                       class="btn btn-sm btn-outline-secondary fs-8 d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-printer"></i>
+                        <span>Cetak Manifest</span>
+                    </a>
+                    <a :href="'{{ url('distribution/label') }}/' + selectedShipment?.id + '/print'" 
+                       target="_blank" 
+                       class="btn btn-sm btn-outline-primary fs-8 d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-qr-code"></i>
+                        <span>Cetak Label</span>
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 

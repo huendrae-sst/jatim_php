@@ -718,20 +718,8 @@
 }">
 
 @php
-    $unreadNotifCount = auth()->check() ? \App\Models\Notification::where('is_read', false)
-        ->where(function($q) {
-            $q->where('user_id', auth()->id())
-              ->orWhere('target_role', auth()->user()->role)
-              ->orWhere('target_organization_id', auth()->user()->organization_id)
-              ->orWhereNull('target_role');
-        })->count() : 0;
-    
-    $recentNotifications = auth()->check() ? \App\Models\Notification::where(function($q) {
-            $q->where('user_id', auth()->id())
-              ->orWhere('target_role', auth()->user()->role)
-              ->orWhere('target_organization_id', auth()->user()->organization_id)
-              ->orWhereNull('target_role');
-        })->latest()->take(4)->get() : collect();
+    $unreadNotifCount = auth()->check() ? \App\Models\Notification::unreadForUser(auth()->user())->count() : 0;
+    $recentNotifications = auth()->check() ? \App\Models\Notification::forUser(auth()->user())->latest()->take(5)->get() : collect();
 @endphp
 
     <!-- App Wrapper -->
@@ -829,24 +817,35 @@
                             @endif
                         </a>
                         <div class="dropdown-menu dropdown-menu-lg dropdown-menu-end shadow">
-                            <span class="dropdown-item dropdown-header fw-bold">{{ $unreadNotifCount }} Notifikasi Baru</span>
+                            <div class="dropdown-item dropdown-header d-flex justify-content-between align-items-center fw-bold py-2">
+                                <span>{{ $unreadNotifCount }} Notifikasi Baru</span>
+                                @if($unreadNotifCount > 0)
+                                    <form action="{{ route('notifications.mark_all_read') }}" method="POST" class="m-0 p-0">
+                                        @csrf
+                                        <button type="submit" class="btn btn-link btn-sm p-0 text-decoration-none fs-8 text-danger fw-normal">Tandai semua dibaca</button>
+                                    </form>
+                                @endif
+                            </div>
                             <div class="dropdown-divider my-0"></div>
                             @forelse($recentNotifications as $notif)
-                                <a href="{{ route('notifications.index') }}" class="dropdown-item py-2">
+                                <a href="{{ route('notifications.open', $notif->id) }}" class="dropdown-item py-2 {{ $notif->is_read ? 'opacity-75' : 'bg-body-tertiary fw-semibold' }}">
                                     <div class="d-flex align-items-start gap-2">
-                                        <div class="mt-1">
-                                            @if($notif->type === 'STOCK_ALERT')
+                                        <div class="mt-1 flex-shrink-0">
+                                            @if($notif->type === 'ACTION_REQUIRED')
+                                                <i class="bi bi-clipboard-check-fill text-warning fs-6"></i>
+                                            @elseif($notif->type === 'ALERT')
                                                 <i class="bi bi-exclamation-triangle-fill text-danger fs-6"></i>
-                                            @elseif($notif->type === 'APPROVAL_REQUEST')
-                                                <i class="bi bi-check-circle-fill text-warning fs-6"></i>
-                                            @elseif($notif->type === 'SHIPMENT_DISPATCH')
-                                                <i class="bi bi-truck text-primary fs-6"></i>
                                             @else
                                                 <i class="bi bi-info-circle-fill text-info fs-6"></i>
                                             @endif
                                         </div>
                                         <div class="flex-grow-1 text-truncate">
-                                            <div class="fs-7 fw-bold text-truncate text-body">{{ $notif->title }}</div>
+                                            <div class="d-flex align-items-center justify-content-between gap-1">
+                                                <span class="fs-7 fw-bold text-truncate text-body">{{ $notif->title }}</span>
+                                                @if(!$notif->is_read)
+                                                    <span class="p-1 bg-danger rounded-circle flex-shrink-0" style="width: 7px; height: 7px;"></span>
+                                                @endif
+                                            </div>
                                             <div class="fs-8 text-secondary text-truncate">{{ $notif->message }}</div>
                                             <div class="fs-8 text-muted mt-0.5">{{ $notif->created_at->diffForHumans() }}</div>
                                         </div>
@@ -931,22 +930,6 @@
                 </a>
             </div>
 
-            <!-- Active User Profile Banner in Sidebar -->
-            @auth
-                <div class="px-3 py-2 border-bottom border-secondary-subtle bg-body-tertiary">
-                    <div class="d-flex align-items-center gap-2">
-                        <div class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center fw-bold fs-8 shrink-0 shadow-xs" style="width: 32px; height: 32px;">
-                            {{ substr(auth()->user()->name, 0, 2) }}
-                        </div>
-                        <div class="text-truncate" style="min-width: 0;">
-                            <div class="fw-bold fs-8 text-truncate text-body">{{ auth()->user()->name }}</div>
-                            <div class="fs-9 text-danger fw-semibold text-truncate">{{ auth()->user()->role_display_name }}</div>
-                            <div class="fs-9 text-secondary text-truncate"><i class="bi bi-geo-alt me-0.5"></i>{{ auth()->user()->organization->name ?? 'Kantor Pusat' }}</div>
-                        </div>
-                    </div>
-                </div>
-            @endauth
-
             <!-- Sidebar Wrapper -->
             <div class="sidebar-wrapper">
                 <nav class="mt-2" aria-label="Main navigation">
@@ -963,7 +946,7 @@
                         @auth
                             <!-- Section: Operasional Transaksi -->
                             @if(auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('warehouse') || auth()->user()->canAccessModule('receiving'))
-                                <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Operasional Transaksi</li>
+                                <!-- <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Operasional Transaksi</li> -->
 
                                 <!-- Permintaan & Orders -->
                                 @if(auth()->user()->canAccessModule('orders'))
@@ -1037,7 +1020,7 @@
                                         <a href="#" class="nav-link {{ request()->routeIs('receiving.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-truck"></i>
                                             <p>
-                                                Penerimaan & QC
+                                                Penerimaan
                                                 <i class="nav-arrow bi bi-chevron-right"></i>
                                             </p>
                                         </a>
@@ -1045,13 +1028,13 @@
                                             <li class="nav-item">
                                                 <a href="{{ route('receiving.po.index') }}" class="nav-link {{ request()->routeIs('receiving.po.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Penerimaan Barang PO</p>
+                                                    <p>Barang PO</p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
                                                 <a href="{{ route('receiving.index') }}" class="nav-link {{ request()->routeIs('receiving.index') || request()->routeIs('receiving.confirm.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Penerimaan Barang Cabang</p>
+                                                    <p>Barang Cabang</p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
@@ -1067,7 +1050,7 @@
 
                             <!-- Section: Inventory & Supply Chain -->
                             @if(auth()->user()->canAccessModule('inventory') || auth()->user()->canAccessModule('procurement') || auth()->user()->canAccessModule('finance'))
-                                <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Persediaan & Pengadaan</li>
+                                <!-- <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Persediaan & Pengadaan</li> -->
 
                                 <!-- Manajemen Persediaan -->
                                 @if(auth()->user()->canAccessModule('inventory'))
@@ -1075,7 +1058,7 @@
                                         <a href="#" class="nav-link {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-stack"></i>
                                             <p>
-                                                Manajemen Persediaan
+                                                Persediaan
                                                 <i class="nav-arrow bi bi-chevron-right"></i>
                                             </p>
                                         </a>
@@ -1083,7 +1066,7 @@
                                             <li class="nav-item">
                                                 <a href="{{ route('inventory.balances') }}" class="nav-link {{ request()->routeIs('inventory.balances') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Stock Balances (SSoT)</p>
+                                                    <p>Stock Balances</p>
                                                 </a>
                                             </li>
                                             @if(auth()->user()->canAccessModule('inventory_ops'))
@@ -1101,16 +1084,22 @@
                                                 </li>
                                             @endif
                                             @if(auth()->user()->canAccessModule('inventory_advanced'))
+                                                 <li class="nav-item">
+                                                     <a href="{{ route('inventory.early_warning') }}" class="nav-link {{ request()->routeIs('inventory.early_warning') ? 'active' : '' }}">
+                                                         <i class="nav-icon bi bi-circle"></i>
+                                                         <p>Early Warning</p>
+                                                     </a>
+                                                 </li>
                                                 <li class="nav-item">
                                                     <a href="{{ route('inventory.forecasting') }}" class="nav-link {{ request()->routeIs('inventory.forecasting') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Peramalan AI (Forecasting)</p>
+                                                        <p>Forecasting</p>
                                                     </a>
                                                 </li>
                                                 <li class="nav-item">
                                                     <a href="{{ route('inventory.switching.index') }}" class="nav-link {{ request()->routeIs('inventory.switching.*') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Switching Antar-Cabang</p>
+                                                        <p>Switching Stock</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1124,7 +1113,7 @@
                                         <a href="#" class="nav-link {{ request()->routeIs('procurement.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-bag-check"></i>
                                             <p>
-                                                Pengadaan (Procurement)
+                                                Pengadaan
                                                 <i class="nav-arrow bi bi-chevron-right"></i>
                                             </p>
                                         </a>
@@ -1144,13 +1133,13 @@
                                             <li class="nav-item">
                                                 <a href="{{ route('procurement.consolidation.index') }}" class="nav-link {{ request()->routeIs('procurement.consolidation.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Konsolidasi PR & Vendor</p>
+                                                    <p>Konsolidasi PR</p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
                                                 <a href="{{ route('procurement.po.index') }}" class="nav-link {{ request()->routeIs('procurement.po.index') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Purchase Order (PO)</p>
+                                                    <p>Purchase Order (PO)  </p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
@@ -1168,7 +1157,7 @@
                                     <li class="nav-item">
                                         <a href="{{ route('finance.settlements.index') }}" class="nav-link {{ request()->routeIs('finance.settlements.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-cash-stack"></i>
-                                            <p>Settlement Alokasi Biaya</p>
+                                            <p>Settlement </p>
                                         </a>
                                     </li>
                                 @endif
@@ -1176,7 +1165,7 @@
 
                             <!-- Section: Master Data & Konfigurasi -->
                             @if(auth()->user()->canAccessModule('master_data') || auth()->user()->canAccessModule('master_users') || auth()->user()->canAccessModule('audit') || auth()->user()->canAccessModule('reports'))
-                                <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Master Data & Administrasi</li>
+                                <!-- <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Master Data & Administrasi</li> -->
 
                                 <!-- Master Data -->
                                 @if(auth()->user()->canAccessModule('master_data') || auth()->user()->canAccessModule('master_users'))
@@ -1184,7 +1173,7 @@
                                         <a href="#" class="nav-link {{ request()->routeIs('master.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-gear-wide-connected"></i>
                                             <p>
-                                                Master Data Terpadu
+                                                Master Data
                                                 <i class="nav-arrow bi bi-chevron-right"></i>
                                             </p>
                                         </a>
@@ -1209,7 +1198,7 @@
                                                 <li class="nav-item">
                                                     <a href="{{ route('master.budgets') }}" class="nav-link {{ request()->routeIs('master.budgets') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Pagu Anggaran Cabang</p>
+                                                        <p>Pagu Anggaran</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1217,7 +1206,7 @@
                                                 <li class="nav-item">
                                                     <a href="{{ route('master.accounting') }}" class="nav-link {{ request()->routeIs('master.accounting*') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Rekening GL & Cost Center</p>
+                                                        <p>COA & Cost Center</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1257,7 +1246,7 @@
                                 <a href="{{ route('notifications.index') }}" class="nav-link {{ request()->routeIs('notifications.index') ? 'active' : '' }}">
                                     <i class="nav-icon bi bi-bell"></i>
                                     <p>
-                                        Monitoring Notifikasi
+                                        Notifikasi
                                         @if($unreadNotifCount > 0)
                                             <span class="badge text-bg-danger float-end">{{ $unreadNotifCount }}</span>
                                         @endif

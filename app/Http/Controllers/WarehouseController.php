@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Organization;
 use App\Models\WarehousePacking;
 use App\Models\WarehousePicking;
 use App\Services\OrderFulfillmentService;
@@ -16,19 +17,47 @@ class WarehouseController extends Controller
         protected OrderFulfillmentService $orderFulfillmentService
     ) {}
 
-    public function pickingQueue()
+    public function pickingQueue(Request $request)
     {
-        $allocatedOrders = Order::with(['requestingOrganization', 'items.item'])
-            ->whereIn('status', ['ALLOCATED', 'APPROVED'])
-            ->latest()
-            ->get();
+        $query = Order::with(['requestingOrganization', 'items.item'])
+            ->whereIn('status', ['ALLOCATED', 'APPROVED']);
+
+        if ($request->filled('organization_id')) {
+            $query->where('requesting_organization_id', $request->organization_id);
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhereHas('requestingOrganization', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('city', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('items.item', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $allocatedOrders = $query->latest()
+            ->paginate($perPage)
+            ->withQueryString();
 
         $completedPickings = WarehousePicking::with(['order.requestingOrganization', 'picker'])
             ->latest()
             ->limit(10)
             ->get();
 
-        return view('warehouse.picking', compact('allocatedOrders', 'completedPickings'));
+        $organizations = Organization::orderBy('name')->get();
+
+        return view('warehouse.picking', compact('allocatedOrders', 'completedPickings', 'organizations', 'perPage'));
     }
 
     public function processPicking($id)
@@ -37,26 +66,50 @@ class WarehouseController extends Controller
         try {
             $picking = $this->orderFulfillmentService->generatePicking($order, Auth::user());
 
-            return redirect()->route('warehouse.packing.queue')
-                ->with('success', "Pick list {$picking->picking_number} berhasil diproses. Order siap masuk tahap packing.");
+            return redirect()->route('warehouse.picking.queue')
+                ->with('success', "Pick list {$picking->picking_number} berhasil dikonfirmasi. Order siap masuk tahap packing.");
         } catch (Exception $e) {
             return back()->with('error', $e->getMessage());
         }
     }
 
-    public function packingQueue()
+    public function packingQueue(Request $request)
     {
-        $pickingOrders = Order::with(['requestingOrganization', 'items.item'])
-            ->where('status', 'PICKING')
-            ->latest()
-            ->get();
+        $query = Order::with(['requestingOrganization', 'items.item'])
+            ->where('status', 'PICKING');
+
+        if ($request->filled('organization_id')) {
+            $query->where('requesting_organization_id', $request->organization_id);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhereHas('requestingOrganization', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('city', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('items.item', function ($sub) use ($search) {
+                        $sub->where('name', 'like', "%{$search}%")
+                            ->orWhere('sku', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $pickingOrders = $query->latest()
+            ->paginate($perPage)
+            ->withQueryString();
 
         $completedPackings = WarehousePacking::with(['order.requestingOrganization', 'packer'])
             ->latest()
             ->limit(10)
             ->get();
 
-        return view('warehouse.packing', compact('pickingOrders', 'completedPackings'));
+        $organizations = Organization::orderBy('name')->get();
+
+        return view('warehouse.packing', compact('pickingOrders', 'completedPackings', 'organizations', 'perPage'));
     }
 
     public function processPacking(Request $request, $id)
@@ -77,7 +130,7 @@ class WarehouseController extends Controller
                 Auth::user()
             );
 
-            return redirect()->route('distribution.shipments.index')
+            return redirect()->route('warehouse.packing.queue')
                 ->with('success', "Packing {$packing->packing_number} selesai. Order siap dikirim (READY_TO_SHIP).");
         } catch (Exception $e) {
             return back()->with('error', $e->getMessage());

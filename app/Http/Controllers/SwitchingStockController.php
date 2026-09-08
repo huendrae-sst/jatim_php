@@ -21,7 +21,7 @@ class SwitchingStockController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 15;
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
         $search = $request->get('search');
         $status = $request->get('status');
         $orgId = $request->get('organization_id');

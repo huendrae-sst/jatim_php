@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Courier;
 use App\Models\Discrepancy;
 use App\Models\GoodsReceipt;
+use App\Models\Organization;
 use App\Models\PurchaseOrder;
 use App\Models\Receiving;
 use App\Models\Shipment;
@@ -26,23 +28,83 @@ class ReceivingController extends Controller
     {
         $user = Auth::user();
         $isBranch = $user->isBranchUser() && $user->organization_id;
+        $tab = $request->get('tab', 'incoming');
+        $search = $request->get('search');
+        $status = $request->get('status');
+        $courierId = $request->get('courier_id');
+        $organizationId = $request->get('organization_id');
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
 
-        $shipmentsQuery = Shipment::with(['order.requestingOrganization', 'courier'])
+        // Query Incoming In-Transit Shipments
+        $shipmentsQuery = Shipment::with(['order.requestingOrganization', 'order.items.item', 'courier', 'originWarehouse'])
             ->whereIn('status', ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY']);
-
-        $receivingsQuery = Receiving::with(['order.requestingOrganization', 'shipment.courier', 'receiver', 'discrepancies']);
 
         if ($isBranch) {
             $shipmentsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $user->organization_id));
-            $receivingsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $user->organization_id));
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $shipmentsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $organizationId));
         }
 
-        $incomingShipments = $shipmentsQuery->latest()->get();
+        if ($courierId && $courierId !== 'ALL') {
+            $shipmentsQuery->where('courier_id', $courierId);
+        }
 
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 15;
-        $receivings = $receivingsQuery->latest()->paginate($perPage)->withQueryString();
+        if ($status && $status !== 'ALL' && $tab === 'incoming') {
+            $shipmentsQuery->where('status', $status);
+        }
 
-        return view('receiving.index', compact('incomingShipments', 'receivings'));
+        if ($search && $tab === 'incoming') {
+            $shipmentsQuery->where(function ($q) use ($search) {
+                $q->where('manifest_number', 'like', "%{$search}%")
+                    ->orWhere('tracking_number', 'like', "%{$search}%")
+                    ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', "%{$search}%")->orWhereHas('requestingOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%")))
+                    ->orWhereHas('courier', fn ($c) => $c->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $incomingShipments = $shipmentsQuery->latest()->paginate($perPage, ['*'], 'shipments_page')->withQueryString();
+
+        // Query Receivings History
+        $receivingsQuery = Receiving::with(['order.requestingOrganization', 'order.items.item', 'shipment.courier', 'receiver', 'discrepancies.item']);
+
+        if ($isBranch) {
+            $receivingsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $user->organization_id));
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $receivingsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $organizationId));
+        }
+
+        if ($status && $status !== 'ALL' && $tab === 'history') {
+            $receivingsQuery->where('status', $status);
+        }
+
+        if ($search && $tab === 'history') {
+            $receivingsQuery->where(function ($q) use ($search) {
+                $q->where('receiving_number', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhereHas('shipment', fn ($s) => $s->where('manifest_number', 'like', "%{$search}%")->orWhere('tracking_number', 'like', "%{$search}%"))
+                    ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', "%{$search}%")->orWhereHas('requestingOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")))
+                    ->orWhereHas('receiver', fn ($r) => $r->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        $receivings = $receivingsQuery->latest('receipt_date')->paginate($perPage, ['*'], 'receivings_page')->withQueryString();
+
+        $couriers = Courier::where('is_active', true)->orderBy('name')->get();
+        $organizations = Organization::whereIn('type', ['MAIN_BRANCH', 'SUB_BRANCH'])->orderBy('name')->get();
+
+        return view('receiving.index', compact(
+            'tab',
+            'incomingShipments',
+            'receivings',
+            'couriers',
+            'organizations',
+            'search',
+            'status',
+            'courierId',
+            'organizationId',
+            'perPage',
+            'isBranch'
+        ));
     }
 
     public function createReceiptForm($shipmentId)
@@ -93,13 +155,68 @@ class ReceivingController extends Controller
 
     public function discrepancies(Request $request)
     {
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 15;
-        $discrepancies = Discrepancy::with(['receiving.order.requestingOrganization', 'item'])
-            ->latest()
+        $user = Auth::user();
+        $isBranch = $user->isBranchUser() && $user->organization_id;
+        $search = $request->get('search');
+        $discrepancyType = $request->get('discrepancy_type');
+        $resolutionStatus = $request->get('resolution_status');
+        $organizationId = $request->get('organization_id');
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
+
+        $baseQuery = Discrepancy::with(['receiving.order.requestingOrganization', 'receiving.shipment.originWarehouse', 'receiving.receiver', 'item.category']);
+
+        if ($isBranch) {
+            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('organization_id', $user->organization_id));
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('organization_id', $organizationId));
+        }
+
+        // Summary KPI Metrics
+        $kpiItems = (clone $baseQuery)->get();
+        $totalCount = $kpiItems->count();
+        $pendingCount = $kpiItems->whereIn('resolution_status', ['REPORTED', 'UNDER_REVIEW', 'IN_REVIEW'])->count();
+        $resolvedCount = $kpiItems->whereIn('resolution_status', ['RESOLVED', 'CLAIMED'])->count();
+        $totalDamagedQty = (int) $kpiItems->sum('qty_damaged');
+
+        $query = clone $baseQuery;
+
+        if ($discrepancyType && $discrepancyType !== 'ALL') {
+            $query->where('discrepancy_type', $discrepancyType);
+        }
+
+        if ($resolutionStatus && $resolutionStatus !== 'ALL') {
+            $query->where('resolution_status', $resolutionStatus);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('receiving', fn ($r) => $r->where('receiving_number', 'like', "%{$search}%"))
+                    ->orWhereHas('receiving.order', fn ($o) => $o->where('order_number', 'like', "%{$search}%")->orWhereHas('requestingOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")))
+                    ->orWhereHas('item', fn ($i) => $i->where('name', 'like', "%{$search}%")->orWhere('sku', 'like', "%{$search}%"))
+                    ->orWhere('resolution_notes', 'like', "%{$search}%");
+            });
+        }
+
+        $discrepancies = $query->latest()
             ->paginate($perPage)
             ->withQueryString();
 
-        return view('receiving.discrepancies', compact('discrepancies'));
+        $organizations = Organization::whereIn('type', ['MAIN_BRANCH', 'SUB_BRANCH'])->orderBy('name')->get();
+
+        return view('receiving.discrepancies', compact(
+            'discrepancies',
+            'totalCount',
+            'pendingCount',
+            'resolvedCount',
+            'totalDamagedQty',
+            'search',
+            'discrepancyType',
+            'resolutionStatus',
+            'organizationId',
+            'organizations',
+            'perPage',
+            'isBranch'
+        ));
     }
 
     public function poIndex(Request $request)

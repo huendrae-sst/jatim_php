@@ -63,7 +63,7 @@
     <div class="card card-outline card-danger shadow-xs">
         <div class="card-header border-bottom">
             <h3 class="card-title fs-7 fw-bold mb-0 text-uppercase text-secondary">
-                <i class="bi bi-diagram-3-fill text-danger me-1"></i> Status Alur Transaksi (Workflow Timeline)
+                Status Alur Transaksi (Workflow Timeline)
             </h3>
         </div>
         <div class="card-body py-3 border-bottom bg-body-tertiary">
@@ -192,7 +192,7 @@
     <div class="card card-outline card-secondary shadow-xs">
         <div class="card-header border-bottom d-flex justify-content-between align-items-center">
             <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                <i class="bi bi-box-seam me-1"></i> Rincian Barang yang Diminta
+                Rincian Barang yang Diminta
             </h3>
             <div class="card-tools">
                 <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fs-8">
@@ -295,7 +295,7 @@
     <div x-show="rejectModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4" x-cloak style="display: none;">
         <div @click.away="rejectModal = false" class="card shadow-2xl border border-secondary-subtle max-w-md w-full p-4 space-y-3" style="background-color: var(--bs-body-bg); color: var(--bs-body-color);">
             <div class="d-flex align-items-center justify-content-between border-bottom pb-2">
-                <h5 class="fw-bold fs-6 mb-0 text-danger"><i class="bi bi-x-circle me-1"></i> Konfirmasi Penolakan Order</h5>
+                <h5 class="fw-bold fs-6 mb-0 text-danger">Konfirmasi Penolakan Order</h5>
                 <button type="button" @click="rejectModal = false" class="btn-close" aria-label="Close"></button>
             </div>
             <form action="{{ route('orders.reject', $order->id) }}" method="POST">

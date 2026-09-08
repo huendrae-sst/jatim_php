@@ -144,6 +144,17 @@ class OrderFulfillmentService
 
             AuditTrailService::log('APPROVE_ORDER', $order, null, ['status' => 'ALLOCATED'], $approver);
 
+            NotificationService::sendUser(
+                $order->created_by_user_id,
+                "Order {$order->order_number} Disetujui",
+                "Order permintaan barang dari unit {$order->requestingOrganization->name} telah disetujui dan dialokasikan untuk pemenuhan gudang.",
+                'INFORMATION',
+                'INFO',
+                'ORDER',
+                $order->id,
+                "/orders/{$order->id}"
+            );
+
             NotificationService::sendActionRequired(
                 "Order {$order->order_number} Siap Diproses Gudang",
                 'Order telah disetujui dan dialokasikan. Mohon lakukan picking dan packing.',
@@ -171,11 +182,14 @@ class OrderFulfillmentService
 
             AuditTrailService::log('REJECT_ORDER', $order, null, ['status' => 'REJECTED', 'reason' => $reason], $user);
 
-            NotificationService::sendInfo(
+            NotificationService::sendUser(
+                $order->created_by_user_id,
                 "Order {$order->order_number} Ditolak",
                 "Order dari unit {$order->requestingOrganization->name} ditolak oleh {$user->name}.".($reason ? " Alasan: {$reason}" : ''),
-                $order->created_by_user_id,
-                null,
+                'INFORMATION',
+                'WARNING',
+                'ORDER',
+                $order->id,
                 "/orders/{$order->id}"
             );
 
@@ -207,6 +221,17 @@ class OrderFulfillmentService
             $order->save();
 
             AuditTrailService::log('GENERATE_PICKING', $picking, null, $picking->toArray(), $user);
+
+            NotificationService::sendUser(
+                $order->created_by_user_id,
+                "Order {$order->order_number} Sedang Dipersiapkan",
+                "Pick list {$picking->picking_number} sedang diproses di gudang logistik pusat.",
+                'INFORMATION',
+                'INFO',
+                'ORDER',
+                $order->id,
+                "/orders/{$order->id}"
+            );
 
             return $picking;
         });
@@ -253,6 +278,17 @@ class OrderFulfillmentService
                 'ORDER',
                 $order->id,
                 '/distribution/shipments'
+            );
+
+            NotificationService::sendUser(
+                $order->created_by_user_id,
+                "Order {$order->order_number} Selesai Dipacking",
+                "Pesanan Anda telah selesai dipacking ({$koliCount} koli, {$totalWeightKg} kg) dan siap diserahkan ke ekspedisi.",
+                'INFORMATION',
+                'INFO',
+                'ORDER',
+                $order->id,
+                "/orders/{$order->id}"
             );
 
             return $packing;
@@ -311,12 +347,27 @@ class OrderFulfillmentService
 
             AuditTrailService::log('DISPATCH_SHIPMENT', $shipment, null, $shipment->toArray(), $user);
 
-            NotificationService::sendInfo(
-                "Pengiriman Order {$order->order_number} Dalam Perjalanan",
-                "Manifest {$shipment->manifest_number} dengan resi {$trackingNumber} telah diberangkatkan menuju {$order->requestingOrganization->name}.",
+            $courierName = $shipment->courier ? $shipment->courier->name : 'Ekspedisi';
+
+            NotificationService::sendUser(
                 $order->created_by_user_id,
-                'RECEIVING_OFFICER',
+                "Pengiriman Order {$order->order_number} Dalam Perjalanan",
+                "Manifest {$shipment->manifest_number} via {$courierName} (No Resi: {$trackingNumber}) telah diberangkatkan menuju {$order->requestingOrganization->name}. Estimasi tiba: {$etaDate}.",
+                'INFORMATION',
+                'INFO',
+                'SHIPMENT',
+                $shipment->id,
                 "/distribution/shipments/{$shipment->id}"
+            );
+
+            NotificationService::sendActionRequired(
+                "Konfirmasi Penerimaan Pengiriman {$shipment->manifest_number}",
+                "Pengiriman order {$order->order_number} via {$courierName} (Resi: {$trackingNumber}) menuju unit Anda. Mohon lakukan konfirmasi penerimaan fisik saat barang tiba.",
+                'RECEIVING_OFFICER',
+                $order->requesting_organization_id,
+                'SHIPMENT',
+                $shipment->id,
+                "/receiving/confirm/{$shipment->id}"
             );
 
             return $shipment;
@@ -392,21 +443,55 @@ class OrderFulfillmentService
             $order->status = 'RECEIVED';
             $order->save();
 
+            AuditTrailService::log('RECEIVE_SHIPMENT', $receiving, null, $receiving->toArray(), $user);
+
+            NotificationService::sendUser(
+                $order->created_by_user_id,
+                "Barang Order {$order->order_number} Telah Diterima",
+                "Penerimaan barang telah dikonfirmasi di {$order->requestingOrganization->name} (No Bukti: {$receiving->receiving_number}). Stok unit Anda telah bertambah.",
+                'INFORMATION',
+                'INFO',
+                'RECEIVING',
+                $receiving->id,
+                "/orders/{$order->id}"
+            );
+
+            NotificationService::sendActionRequired(
+                "Settlement Diperlukan untuk Order {$order->order_number}",
+                "Order {$order->order_number} telah selesai diterima di {$order->requestingOrganization->name}. Silakan buat dan proses settlement finansial antarunit.",
+                'FINANCE_OFFICER',
+                null,
+                'ORDER',
+                $order->id,
+                '/finance/settlements'
+            );
+
             if ($hasDiscrepancy) {
                 $receiving->status = 'DISCREPANCY';
                 $receiving->save();
 
                 NotificationService::sendAlert(
                     "Laporan Discrepancy Penerimaan {$rcvNumber}",
-                    "Terdapat selisih/kerusakan barang pada order {$order->order_number}.",
+                    "Terdapat selisih/kerusakan barang pada penerimaan order {$order->order_number} di unit {$order->requestingOrganization->name}.",
                     'HIGH',
                     'DISTRIBUTION_OFFICER',
                     null,
+                    'RECEIVING',
+                    $receiving->id,
+                    '/receiving/discrepancies'
+                );
+
+                NotificationService::sendAlert(
+                    "Discrepancy Penerimaan Order {$order->order_number}",
+                    "Terdapat barang rusak/kurang pada penerimaan order {$order->order_number}. Silakan periksa daftar discrepancy.",
+                    'HIGH',
+                    'WAREHOUSE_OFFICER',
+                    null,
+                    'RECEIVING',
+                    $receiving->id,
                     '/receiving/discrepancies'
                 );
             }
-
-            AuditTrailService::log('RECEIVE_SHIPMENT', $receiving, null, $receiving->toArray(), $user);
 
             return $receiving;
         });

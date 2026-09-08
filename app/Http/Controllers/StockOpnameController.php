@@ -6,6 +6,7 @@ use App\Models\Item;
 use App\Models\StockOpname;
 use App\Models\StockOpnameItem;
 use App\Models\Warehouse;
+use App\Services\NotificationService;
 use App\Services\StockLedgerService;
 use Exception;
 use Illuminate\Http\Request;
@@ -149,6 +150,42 @@ class StockOpnameController extends Controller
 
             DB::commit();
 
+            if ($adjustedCount > 0) {
+                NotificationService::sendAlert(
+                    "Stock Opname {$refNo} Selesai dengan {$adjustedCount} Selisih Stok",
+                    "Stock opname di {$warehouse->name} selesai dengan {$adjustedCount} item selisih stok (Net Variansi: {$netVarianceQty} unit). Penyesuaian telah diposting ke Stock Ledger.",
+                    'HIGH',
+                    'INVENTORY_OFFICER',
+                    $warehouse->organization_id,
+                    'STOCK_OPNAME',
+                    $stockOpname->id,
+                    "/inventory/stock-opname/history/{$stockOpname->id}"
+                );
+
+                NotificationService::sendAlert(
+                    "Temuan Selisih Stock Opname {$refNo} ({$warehouse->name})",
+                    "Terdapat selisih fisik vs sistem pada {$adjustedCount} item di {$warehouse->name}. Catatan: {$request->opname_notes}",
+                    'WARNING',
+                    'AUDITOR',
+                    null,
+                    'STOCK_OPNAME',
+                    $stockOpname->id,
+                    "/inventory/stock-opname/history/{$stockOpname->id}"
+                );
+            } else {
+                NotificationService::sendRole(
+                    'INVENTORY_OFFICER',
+                    "Stock Opname {$refNo} Selesai (Sesuai)",
+                    "Stock opname di {$warehouse->name} telah selesai diverifikasi tanpa selisih stok fisik vs sistem.",
+                    $warehouse->organization_id,
+                    'INFORMATION',
+                    'INFO',
+                    'STOCK_OPNAME',
+                    $stockOpname->id,
+                    "/inventory/stock-opname/history/{$stockOpname->id}"
+                );
+            }
+
             return redirect()->route('inventory.balances', ['warehouse_id' => $warehouse->id])
                 ->with('success', "Stock Opname {$refNo} Periode {$stockOpname->period_formatted} berhasil disimpan. {$adjustedCount} item dengan selisih telah disesuaikan dan diposting ke Stock Ledger.");
         } catch (Exception $e) {
@@ -218,7 +255,7 @@ class StockOpnameController extends Controller
         $totalDiscrepancies = (clone $kpiQuery)->sum('discrepancy_items_count');
         $netVarianceVal = (clone $kpiQuery)->sum('net_variance_value');
 
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 15;
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 10;
         $opnames = $baseQuery->with('items.item.category')->latest('id')->paginate($perPage)->withQueryString();
 
         $currentWarehouse = ($selectedWarehouseId && $selectedWarehouseId !== 'all')

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DistributionController;
+use App\Http\Controllers\EarlyWarningController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\OrderController;
@@ -118,6 +119,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/stock-opname', [StockOpnameController::class, 'store'])->name('stock_opname.store');
         Route::get('/stock-opname/history', [StockOpnameController::class, 'history'])->name('stock_opname.history');
         Route::get('/stock-opname/history/{id}', [StockOpnameController::class, 'showHistory'])->name('stock_opname.history.show');
+        Route::get('/early-warning', [EarlyWarningController::class, 'index'])->name('early_warning');
+        Route::post('/early-warning/scan', [EarlyWarningController::class, 'scan'])->name('early_warning.scan');
+        Route::get('/early-warning/export-csv', [EarlyWarningController::class, 'exportCsv'])->name('early_warning.csv');
         Route::get('/forecasting', [InventoryController::class, 'forecasting'])->name('forecasting');
         Route::get('/switching-stocks', [SwitchingStockController::class, 'index'])->name('switching.index');
         Route::get('/switching-stocks/recommendations', [SwitchingStockController::class, 'recommendations'])->name('switching.recommendations');
@@ -201,5 +205,8 @@ Route::middleware('auth')->group(function () {
 
     // Notifications & Audit Trail
     Route::get('/notifications', [MasterDataController::class, 'notificationsIndex'])->name('notifications.index');
+    Route::post('/notifications/mark-all-read', [MasterDataController::class, 'markAllNotificationsAsRead'])->name('notifications.mark_all_read');
+    Route::post('/notifications/{id}/read', [MasterDataController::class, 'markNotificationAsRead'])->name('notifications.read');
+    Route::get('/notifications/{id}/open', [MasterDataController::class, 'openNotification'])->name('notifications.open');
     Route::get('/audit-trail', [MasterDataController::class, 'auditTrailIndex'])->name('audit.index');
 });

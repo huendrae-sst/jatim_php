@@ -1130,30 +1130,81 @@ class MasterDataController extends Controller
     public function notificationsIndex(Request $request)
     {
         $user = Auth::user();
-        $notifPerPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 25;
-        $notifications = Notification::where(function ($q) use ($user) {
-            $q->where('user_id', $user->id)
-                ->orWhere('target_role', $user->role)
-                ->orWhere('target_organization_id', $user->organization_id)
-                ->orWhereNull('target_role');
-        })
-            ->latest()
-            ->paginate($notifPerPage)
-            ->withQueryString();
+        $notifPerPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $tab = $request->get('tab', 'all');
 
-        // Mark unread as read
-        Notification::where('is_read', false)->where(function ($q) use ($user) {
-            $q->where('user_id', $user->id)
-                ->orWhere('target_role', $user->role);
-        })->update(['is_read' => true, 'read_at' => now()]);
+        $baseQuery = Notification::forUser($user);
 
-        return view('notifications.index', compact('notifications'));
+        $totalCount = (clone $baseQuery)->count();
+        $actionRequiredCount = (clone $baseQuery)->where('type', 'ACTION_REQUIRED')->count();
+        $alertCount = (clone $baseQuery)->where('type', 'ALERT')->count();
+        $infoCount = (clone $baseQuery)->where('type', 'INFORMATION')->count();
+        $unreadCount = (clone $baseQuery)->where('is_read', false)->count();
+
+        $query = clone $baseQuery;
+        if ($tab === 'action_required') {
+            $query->where('type', 'ACTION_REQUIRED');
+        } elseif ($tab === 'alert') {
+            $query->where('type', 'ALERT');
+        } elseif ($tab === 'info') {
+            $query->where('type', 'INFORMATION');
+        } elseif ($tab === 'unread') {
+            $query->where('is_read', false);
+        }
+
+        $notifications = $query->latest()->paginate($notifPerPage)->withQueryString();
+
+        return view('notifications.index', compact(
+            'notifications',
+            'tab',
+            'totalCount',
+            'actionRequiredCount',
+            'alertCount',
+            'infoCount',
+            'unreadCount'
+        ));
+    }
+
+    public function markNotificationAsRead(Request $request, $id)
+    {
+        $user = Auth::user();
+        $notification = Notification::forUser($user)->findOrFail($id);
+        $notification->update(['is_read' => true, 'read_at' => now()]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return back()->with('success', 'Notifikasi berhasil ditandai sudah dibaca.');
+    }
+
+    public function markAllNotificationsAsRead(Request $request)
+    {
+        $user = Auth::user();
+        Notification::unreadForUser($user)->update(['is_read' => true, 'read_at' => now()]);
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+
+        return back()->with('success', 'Semua notifikasi berhasil ditandai sudah dibaca.');
+    }
+
+    public function openNotification($id)
+    {
+        $user = Auth::user();
+        $notification = Notification::forUser($user)->findOrFail($id);
+        if (! $notification->is_read) {
+            $notification->update(['is_read' => true, 'read_at' => now()]);
+        }
+
+        return redirect($notification->action_url ?: route('notifications.index'));
     }
 
     // Audit Trail
     public function auditTrailIndex(Request $request)
     {
-        $logsPerPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 25;
+        $logsPerPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
         $logs = AuditLog::with(['user', 'organization'])->latest()->paginate($logsPerPage)->withQueryString();
 
         return view('audit.index', compact('logs'));

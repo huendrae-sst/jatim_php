@@ -338,7 +338,7 @@
             
             <div class="card-header bg-danger text-white d-flex align-items-center justify-content-between py-2.5 px-3">
                 <h6 class="modal-title fw-bold mb-0">
-                    <i class="bi bi-cart-check me-1.5"></i> Detail Purchase Order: <span class="font-monospace" x-text="viewPo?.po_number"></span>
+                    Detail Purchase Order: <span class="font-monospace" x-text="viewPo?.po_number"></span>
                 </h6>
                 <button type="button" class="btn-close btn-close-white" @click="viewModal = false" aria-label="Close"></button>
             </div>

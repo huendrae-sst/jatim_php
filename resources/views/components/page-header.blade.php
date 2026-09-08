@@ -11,9 +11,6 @@
         <!-- Title & Subtitle -->
         <div class="min-w-0">
             <div class="d-flex align-items-center gap-2">
-                @if($icon)
-                    <i class="{{ $icon }} text-danger fs-4"></i>
-                @endif
                 <h1 class="h4 fw-bold mb-0 tracking-tight text-truncate">{{ $title }}</h1>
             </div>
             @if($subtitle)

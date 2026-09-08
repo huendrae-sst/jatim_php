@@ -560,9 +560,7 @@
 
                 <!-- Items Table -->
                 <div>
-                    <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-1.5">
-                        <i class="bi bi-box-seam me-1 text-danger"></i> Rincian Barang Diminta
-                    </label>
+                    <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-1.5">Rincian Barang Diminta</label>
                     <div class="table-responsive rounded border border-secondary-subtle" style="max-height: 220px; overflow-y: auto;">
                         <table class="table table-sm table-striped table-hover align-middle mb-0 fs-8">
                             <thead class="bg-body-tertiary text-secondary sticky-top">
@@ -697,7 +695,7 @@
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-1.5">
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-0">
-                                <i class="bi bi-box-seam me-1 text-danger"></i> Daftar Barang Diminta (<span x-text="editPr.items.length"></span> item)
+                                Daftar Barang Diminta (<span x-text="editPr.items.length"></span> item)
                             </label>
                             <template x-if="editPr.is_editable">
                                 <button type="button" @click="addEditRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold">
@@ -913,7 +911,7 @@
                     <div>
                         <div class="d-flex align-items-center justify-content-between mb-1.5">
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-0">
-                                <i class="bi bi-box-seam me-1 text-danger"></i> Daftar Barang yang Diminta (<span x-text="createRows.length"></span> item)
+                                Daftar Barang yang Diminta (<span x-text="createRows.length"></span> item)
                             </label>
                             <button type="button" @click="addCreateRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold">
                                 <i class="bi bi-plus-circle me-1"></i> Tambah Item

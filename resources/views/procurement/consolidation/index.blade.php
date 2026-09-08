@@ -162,7 +162,7 @@
         <div class="card card-outline card-danger shadow-xs mb-3">
             <div class="card-header border-bottom py-2.5 px-3">
                 <h3 class="card-title fw-bold text-dark fs-7 mb-0 d-flex align-items-center">
-                    <i class="bi bi-building-gear text-danger me-2"></i> Parameter Purchase Order (PO)
+                    Parameter Purchase Order (PO)
                 </h3>
             </div>
             <div class="card-body p-3">
@@ -420,7 +420,7 @@
             
             <div class="card-header bg-danger text-white py-2.5 px-3 d-flex align-items-center justify-content-between">
                 <h5 class="card-title fs-7 fw-bold mb-0 d-flex align-items-center gap-2">
-                    <i class="bi bi-file-earmark-check"></i> Konfirmasi Penerbitan Purchase Order
+                    Konfirmasi Penerbitan Purchase Order
                 </h5>
                 <button type="button" class="btn-close btn-close-white" @click="confirmModal = false" aria-label="Close"></button>
             </div>

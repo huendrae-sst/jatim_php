@@ -80,11 +80,26 @@ class SettlementService
 
             AuditTrailService::log('POST_SETTLEMENT', $settlement, null, ['status' => 'POSTED'], $approver);
 
-            NotificationService::sendInfo(
-                'Settlement Selesai & Diposting',
-                "Settlement {$settlement->settlement_number} telah diposting. Order {$order->order_number} resmi ditutup (COMPLETED).",
+            NotificationService::sendUser(
                 $order->created_by_user_id,
+                "Siklus Order {$order->order_number} Selesai Penuh (COMPLETED)",
+                "Settlement pembukuan antarunit (No: {$settlement->settlement_number}) telah disetujui dan diposting. Order Anda resmi selesai.",
+                'INFORMATION',
+                'INFO',
+                'ORDER',
+                $order->id,
+                "/orders/{$order->id}"
+            );
+
+            NotificationService::sendRole(
                 'FINANCE_OFFICER',
+                'Settlement Diposting ke Realisasi Anggaran',
+                "Settlement {$settlement->settlement_number} senilai Rp ".number_format($settlement->total_amount, 0, ',', '.').' telah disetujui dan diposting ke realisasi anggaran.',
+                null,
+                'INFORMATION',
+                'INFO',
+                'SETTLEMENT',
+                $settlement->id,
                 '/finance/settlements'
             );
 

@@ -94,6 +94,36 @@
         @endif
     </div>
 
+    <!-- EWS Early Warning Banner -->
+    @if(($ewsSummary['total_alerts'] ?? 0) > 0)
+        <div class="alert alert-danger-subtle border border-danger-subtle d-flex align-items-center justify-content-between p-3 rounded-3 shadow-xs mb-0 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-danger text-white p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                    <i class="bi bi-radar fs-5"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-0 text-danger-emphasis d-flex align-items-center gap-2">
+                        Early Warning System (EWS): Terdeteksi {{ $ewsSummary['total_alerts'] }} Anomali Persediaan
+                        @if($ewsSummary['critical_count'] > 0)
+                            <span class="badge bg-danger">{{ $ewsSummary['critical_count'] }} Kritis/Stockout</span>
+                        @endif
+                        @if($ewsSummary['reorder_count'] > 0)
+                            <span class="badge bg-warning text-dark">{{ $ewsSummary['reorder_count'] }} Reorder (ROP)</span>
+                        @endif
+                    </h6>
+                    <p class="fs-8 text-secondary mb-0">
+                        Terdapat SKU dalam kondisi bahaya kehabisan stok, melebihi kapasitas (overstock), atau mengendap tanpa mutasi. Valuasi aset terdampak: <strong>Rp {{ number_format($ewsSummary['total_at_risk_valuation'], 0, ',', '.') }}</strong>.
+                    </p>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('inventory.early_warning') }}" class="btn btn-sm btn-danger fs-8">
+                    <i class="bi bi-shield-exclamation me-1"></i> Buka Radar EWS
+                </a>
+            </div>
+        </div>
+    @endif
+
     <!-- Operational Action Center (Adaptive Info-Boxes) -->
     <div class="row g-2 g-sm-3">
         @if($isBranch)
@@ -252,7 +282,7 @@
             <div class="card card-outline card-danger shadow-xs h-100">
                 <div class="card-header border-bottom">
                     <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                        <i class="bi bi-pie-chart-fill text-danger me-1"></i> Valuasi per Kategori Barang
+                        Valuasi per Kategori Barang
                     </h3>
                     <div class="card-tools">
                         <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle fs-8">Aktif</span>
@@ -271,7 +301,7 @@
             <div class="card card-outline card-warning shadow-xs h-100">
                 <div class="card-header border-bottom">
                     <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                        <i class="bi bi-bar-chart-fill text-warning me-1"></i> Serapan Pagu Anggaran per Cabang
+                        Serapan Pagu Anggaran per Cabang
                     </h3>
                     <div class="card-tools">
                         <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-8">TA 2026</span>

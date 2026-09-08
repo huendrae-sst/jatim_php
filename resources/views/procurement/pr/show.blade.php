@@ -150,7 +150,7 @@
                     @csrf
                     <div class="modal-header bg-danger text-white py-2.5 px-3">
                         <h6 class="modal-title fw-bold">
-                            <i class="bi bi-exclamation-octagon me-1.5"></i> Tolak Purchase Request
+                            Tolak Purchase Request
                         </h6>
                         <button type="button" class="btn-close btn-close-white" @click="rejectModal = false"></button>
                     </div>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Organization;
 use App\Models\Settlement;
 use App\Services\SettlementService;
 use Exception;
@@ -17,32 +18,114 @@ class SettlementController extends Controller
 
     public function index(Request $request)
     {
-        // Unsettled orders that have been received
-        $unsettledOrders = Order::with(['requestingOrganization', 'shipments', 'receivings'])
+        $search = $request->get('search');
+        $tab = $request->get('tab', 'waiting_approval');
+        $organizationId = $request->get('organization_id');
+        $user = Auth::user();
+        $isBranch = $user->isBranchUser() && $user->organization_id;
+
+        // Unsettled orders query (orders received but not yet settled)
+        $unsettledOrdersQuery = Order::with(['requestingOrganization', 'shipments', 'receivings', 'items.item'])
             ->where('status', 'RECEIVED')
-            ->whereDoesntHave('settlements')
-            ->get();
+            ->whereDoesntHave('settlements');
 
-        $unsettledCount = $unsettledOrders->count();
-        $waitingApprovalCount = Settlement::where('status', 'WAITING_APPROVAL')->count();
-        $postedCount = Settlement::where('status', 'POSTED')->count();
-        $totalAmount = (float) Settlement::sum('total_amount');
-        $totalCount = Settlement::count();
+        if ($isBranch) {
+            $unsettledOrdersQuery->where('requesting_organization_id', $user->organization_id);
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $unsettledOrdersQuery->where('requesting_organization_id', $organizationId);
+        }
 
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 15;
-        $settlements = Settlement::with(['order.requestingOrganization', 'debitOrganization', 'creditOrganization', 'creator', 'approver'])
-            ->latest()
-            ->paginate($perPage)
-            ->withQueryString();
+        if ($search) {
+            $unsettledOrdersQuery->where(function ($q) use ($search) {
+                $q->where('order_number', 'like', "%{$search}%")
+                    ->orWhereHas('requestingOrganization', fn ($oq) => $oq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
+            });
+        }
+
+        $unsettledOrders = $unsettledOrdersQuery->latest()->get();
+
+        // Settlements Query
+        $query = Settlement::with([
+            'order.requestingOrganization',
+            'order.items.item',
+            'order.shipments',
+            'debitOrganization',
+            'creditOrganization',
+            'creator',
+            'approver',
+        ]);
+
+        if ($isBranch) {
+            $query->where(function ($q) use ($user) {
+                $q->where('debit_organization_id', $user->organization_id)
+                    ->orWhere('credit_organization_id', $user->organization_id);
+            });
+            $organizationId = (string) $user->organization_id;
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $query->where(function ($q) use ($organizationId) {
+                $q->where('debit_organization_id', $organizationId)
+                    ->orWhere('credit_organization_id', $organizationId);
+            });
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('settlement_number', 'like', "%{$search}%")
+                    ->orWhereHas('order', fn ($oq) => $oq->where('order_number', 'like', "%{$search}%"))
+                    ->orWhereHas('debitOrganization', fn ($dq) => $dq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
+                    ->orWhereHas('creditOrganization', fn ($cq) => $cq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"));
+            });
+        }
+
+        // Apply Tab Filter
+        match ($tab) {
+            'posted' => $query->where('status', 'POSTED'),
+            'all' => null,
+            default => $query->where('status', 'WAITING_APPROVAL'),
+        };
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $settlements = $query->latest()->paginate($perPage)->withQueryString();
+
+        // KPI Counts (scoped to branch if branch user)
+        $kpiQuery = Settlement::query();
+        if ($isBranch) {
+            $kpiQuery->where(function ($q) use ($user) {
+                $q->where('debit_organization_id', $user->organization_id)
+                    ->orWhere('credit_organization_id', $user->organization_id);
+            });
+        }
+
+        $waitingApprovalCount = (clone $kpiQuery)->where('status', 'WAITING_APPROVAL')->count();
+        $postedCount = (clone $kpiQuery)->where('status', 'POSTED')->count();
+        $allCount = (clone $kpiQuery)->count();
+        $totalAmount = (float) (clone $kpiQuery)->sum('total_amount');
+        $waitingAmount = (float) (clone $kpiQuery)->where('status', 'WAITING_APPROVAL')->sum('total_amount');
+
+        $unsettledKpiQuery = Order::where('status', 'RECEIVED')->whereDoesntHave('settlements');
+        if ($isBranch) {
+            $unsettledKpiQuery->where('requesting_organization_id', $user->organization_id);
+        }
+        $unsettledCount = $unsettledKpiQuery->count();
+
+        $organizations = $isBranch
+            ? Organization::where('id', $user->organization_id)->get(['id', 'name', 'code'])
+            : Organization::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
 
         return view('finance.settlements.index', compact(
             'unsettledOrders',
             'settlements',
+            'tab',
+            'search',
+            'organizationId',
+            'organizations',
+            'perPage',
             'unsettledCount',
             'waitingApprovalCount',
             'postedCount',
+            'allCount',
             'totalAmount',
-            'totalCount'
+            'waitingAmount'
         ));
     }
 

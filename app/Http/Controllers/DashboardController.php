@@ -17,13 +17,15 @@ use App\Models\StockBalance;
 use App\Models\StockLedger;
 use App\Models\SwitchingStock;
 use App\Models\Warehouse;
+use App\Services\EarlyWarningService;
 use App\Services\ForecastingService;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
     public function __construct(
-        protected ForecastingService $forecastingService
+        protected ForecastingService $forecastingService,
+        protected EarlyWarningService $earlyWarningService
     ) {}
 
     public function index()
@@ -64,9 +66,10 @@ class DashboardController extends Controller
         $pendingSettlements = Settlement::where('status', 'WAITING_APPROVAL')->count();
         $pendingSwitching = SwitchingStock::where('status', 'PROPOSED')->count();
 
-        // 4. Forecast Risk Items
+        // 4. Forecast Risk Items & EWS Summary
         $forecasts = $this->forecastingService->getAllForecasts();
         $criticalRiskItems = array_filter($forecasts, fn ($f) => $f['risk_level'] !== 'SAFE');
+        $ewsSummary = $this->earlyWarningService->getSummaryMetrics();
 
         // 5. Chart 1: Stock Valuation by Category
         $categoryValuations = Category::with('items.stockBalances')->get()->map(function ($cat) {
@@ -163,12 +166,7 @@ class DashboardController extends Controller
         $recentOrders = $ordersQuery->latest()->limit(7)->get();
 
         // 9. Recent Notifications
-        $notifications = Notification::where(function ($q) use ($user) {
-            $q->where('user_id', $user->id)
-                ->orWhere('target_role', $user->role)
-                ->orWhere('target_organization_id', $user->organization_id)
-                ->orWhereNull('target_role');
-        })
+        $notifications = Notification::forUser($user)
             ->latest()
             ->limit(5)
             ->get();
@@ -227,7 +225,8 @@ class DashboardController extends Controller
             'movementOut',
             'movementBranch',
             'recentOrders',
-            'notifications'
+            'notifications',
+            'ewsSummary'
         ));
     }
 }

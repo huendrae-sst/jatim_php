@@ -161,7 +161,7 @@
         <!-- Card Header -->
         <div class="card-header bg-body py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
             <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                <i class="bi bi-journal-text text-danger me-2"></i> Histori Buku Besar Stok (Immutable Stock Ledger)
+                Histori Buku Besar Stok (Immutable Stock Ledger)
             </h3>
             <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">{{ $ledgers->total() }} Mutasi Tercatat</span>
         </div>

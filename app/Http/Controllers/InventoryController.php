@@ -85,7 +85,7 @@ class InventoryController extends Controller
             }
         }
 
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 15;
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 10;
         $balances = $query->paginate($perPage)->withQueryString();
 
         $categories = Category::orderBy('name')->get();
@@ -121,7 +121,7 @@ class InventoryController extends Controller
 
         $search = $request->get('search');
         $transactionType = $request->get('transaction_type');
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 20;
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 20, 25, 50]) ? (int) $request->get('per_page') : 10;
 
         $query = StockLedger::with(['warehouse.organization', 'creator'])
             ->where('item_id', $item->id)
