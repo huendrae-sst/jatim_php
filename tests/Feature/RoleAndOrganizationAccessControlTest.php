@@ -31,13 +31,13 @@ class RoleAndOrganizationAccessControlTest extends TestCase
 
         // Sidebar visible items
         $response->assertSee('Permintaan & Order', false);
-        $response->assertSee('Penerimaan & QC', false);
-        $response->assertSee('Stock Balances (SSoT)');
+        $response->assertSee('Penerimaan', false);
+        $response->assertSee('Stock Balances');
 
         // Sidebar hidden items for regular branch requester
-        $response->assertDontSee('Master Data Terpadu');
+        $response->assertDontSee(route('master.organizations'), false);
         $response->assertDontSee('Antrean Picking');
-        $response->assertDontSee('Settlement Alokasi Biaya');
+        $response->assertDontSee(route('finance.settlements.index'), false);
         $response->assertDontSee('Konsolidasi PR & Vendor', false);
         $response->assertDontSee(route('orders.approvals'), false); // Requester cannot see approvals link in sidebar
     }
@@ -100,7 +100,7 @@ class RoleAndOrganizationAccessControlTest extends TestCase
         $response->assertSee('Gudang & Distribusi', false);
         $response->assertSee('Antrean Picking');
         $response->assertSee('Antrean Packing');
-        $response->assertSee('Stock Balances (SSoT)');
+        $response->assertSee('Stock Balances');
         $response->assertSee('Stock Opname Fisik');
 
         // Sidebar hidden items
@@ -116,11 +116,11 @@ class RoleAndOrganizationAccessControlTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Super Administrator');
-        $response->assertSee('Master Data Terpadu');
+        $response->assertSee('Master Data');
         $response->assertSee('Permintaan & Order', false);
         $response->assertSee('Gudang & Distribusi', false);
-        $response->assertSee('Pengadaan (Procurement)');
-        $response->assertSee('Settlement Alokasi Biaya');
+        $response->assertSee('Pengadaan');
+        $response->assertSee('Settlement');
         $response->assertSee('Audit Trail Sistem');
         $response->assertSee('Laporan & Rekapitulasi', false);
     }

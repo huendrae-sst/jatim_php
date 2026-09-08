@@ -25,7 +25,7 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $currentTab = $request->get('tab', 'all');
+        $currentTab = $request->get('tab', 'open');
         $search = $request->get('search');
         $status = $request->get('status');
         $organizationId = $request->get('organization_id');
@@ -47,14 +47,10 @@ class OrderController extends Controller
         }
 
         // Tab Filtering directly on Database
-        if ($currentTab === 'delivered') {
-            $query->whereIn('status', ['COMPLETED', 'RECEIVED'])
-                ->where('updated_at', '>=', Carbon::now()->startOfMonth());
-        } elseif ($currentTab === 'new_quarter') {
-            $query->where('created_at', '>=', Carbon::now()->firstOfQuarter());
-        } elseif ($currentTab === 'cancelled') {
-            $query->where('status', 'REJECTED')
-                ->where('updated_at', '>=', Carbon::now()->startOfMonth());
+        if ($currentTab === 'open') {
+            $query->whereNotIn('status', ['COMPLETED', 'RECEIVED', 'REJECTED', 'CANCELLED']);
+        } elseif ($currentTab === 'completed') {
+            $query->whereIn('status', ['COMPLETED', 'RECEIVED']);
         }
 
         // Status Filter
@@ -91,16 +87,10 @@ class OrderController extends Controller
         }
 
         $totalOrdersCount = (clone $aggregateQuery)->count();
-        $openOrdersCount = (clone $aggregateQuery)->whereNotIn('status', ['COMPLETED', 'RECEIVED', 'REJECTED'])->count();
+        $openOrdersCount = (clone $aggregateQuery)->whereNotIn('status', ['COMPLETED', 'RECEIVED', 'REJECTED', 'CANCELLED'])->count();
+        $completedOrdersCount = (clone $aggregateQuery)->whereIn('status', ['COMPLETED', 'RECEIVED'])->count();
         $averageOrderValue = (float) ((clone $aggregateQuery)->avg('total_estimated_value') ?? 0);
-
-        // Tab Counter Queries directly from Database
-        $allCount = $totalOrdersCount;
-        $newQuarterCount = (clone $aggregateQuery)->where('created_at', '>=', Carbon::now()->firstOfQuarter())->count();
         $deliveredMonthCount = (clone $aggregateQuery)->whereIn('status', ['COMPLETED', 'RECEIVED'])
-            ->where('updated_at', '>=', Carbon::now()->startOfMonth())
-            ->count();
-        $cancelledMonthCount = (clone $aggregateQuery)->where('status', 'REJECTED')
             ->where('updated_at', '>=', Carbon::now()->startOfMonth())
             ->count();
 
@@ -121,11 +111,9 @@ class OrderController extends Controller
             'perPage',
             'totalOrdersCount',
             'openOrdersCount',
+            'completedOrdersCount',
             'averageOrderValue',
-            'allCount',
-            'newQuarterCount',
             'deliveredMonthCount',
-            'cancelledMonthCount',
             'itemsCatalog',
             'organizations',
             'warehouses'
@@ -263,6 +251,19 @@ class OrderController extends Controller
     public function show($id)
     {
         return redirect()->route('orders.index');
+    }
+
+    public function print($id)
+    {
+        $order = Order::with([
+            'requestingOrganization',
+            'requestingWarehouse',
+            'requester',
+            'approver',
+            'items.item.category',
+        ])->findOrFail($id);
+
+        return view('orders.print', compact('order'));
     }
 
     public function update(Request $request, $id)

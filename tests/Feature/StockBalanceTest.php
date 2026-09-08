@@ -238,10 +238,10 @@ class StockBalanceTest extends TestCase
         $response->assertSee('Kertas A4 Sinar Dunia');
         $response->assertSee('Posting Hasil Opname');
 
-        // Period & History link
+        // Period & Removed History link
         $response->assertSee('Periode:');
         $response->assertSee('Maret');
-        $response->assertSee('Riwayat Opname');
+        $response->assertDontSee('Riwayat Opname');
     }
 
     public function test_stock_opname_posting_records_session_with_period_and_adjusts_ledger(): void

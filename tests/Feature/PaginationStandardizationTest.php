@@ -58,8 +58,8 @@ class PaginationStandardizationTest extends TestCase
     {
         $admin = User::where('role', 'SUPER_ADMIN')->firstOrFail();
 
-        // Query with per_page=1 to guarantee multiple pages
-        $response = $this->actingAs($admin)->get(route('orders.index', ['per_page' => 1]));
+        // Query with per_page=5 to guarantee multiple pages (total 9 open orders)
+        $response = $this->actingAs($admin)->get(route('orders.index', ['per_page' => 5]));
         $response->assertStatus(200);
 
         // Assert Bootstrap Icons for first, prev, next, last are present

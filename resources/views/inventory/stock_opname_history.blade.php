@@ -121,12 +121,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Action Button: Stock Opname Baru -->
-                <a href="{{ route('inventory.stock_opname', ['warehouse_id' => $selectedWarehouseId !== 'all' ? $selectedWarehouseId : ($warehouses->first()?->id ?? 1)]) }}" class="inline-flex items-center space-x-2 bg-danger hover:bg-danger-emphasis text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-xs">
-                    <i class="bi bi-plus-lg"></i>
-                    <span>Pelaksanaan Opname Baru</span>
-                </a>
             </div>
         </div>
     </div>

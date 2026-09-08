@@ -89,7 +89,7 @@
                     </button>
                 </li>
             </ul>
-            <div class="card-tools ms-md-auto">
+            <div class="card-tools ms-md-auto d-flex align-items-center gap-2">
                 <template x-if="activeTab === 'vendors'">
                     <button @click="createVendorModalOpen = true" type="button" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
                         <i class="bi bi-plus-circle"></i>
@@ -102,6 +102,10 @@
                         <span>Tambah Mitra Ekspedisi</span>
                     </button>
                 </template>
+                <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary fw-bold shadow-xs d-inline-flex align-items-center gap-1" title="Cetak Halaman Ini">
+                    <i class="bi bi-printer"></i>
+                    <span>Cetak</span>
+                </button>
             </div>
         </div>
 

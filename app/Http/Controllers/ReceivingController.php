@@ -219,6 +219,19 @@ class ReceivingController extends Controller
         ));
     }
 
+    public function discrepancyPrint($id)
+    {
+        $discrepancy = Discrepancy::with([
+            'receiving.order.requestingOrganization',
+            'receiving.shipment.originWarehouse',
+            'receiving.shipment.courier',
+            'receiving.receiver',
+            'item.category',
+        ])->findOrFail($id);
+
+        return view('receiving.discrepancy_print', compact('discrepancy'));
+    }
+
     public function poIndex(Request $request)
     {
         $tab = $request->get('tab', 'queue');

@@ -48,6 +48,9 @@
                     <i class="bi bi-layers me-1"></i> Masuk ke Konsolidasi PO
                 </a>
             @endif
+            <a href="{{ route('procurement.pr.print', $pr->id) }}" target="_blank" class="btn btn-sm btn-outline-danger fw-bold shadow-xs">
+                <i class="bi bi-printer me-1"></i> Cetak PR
+            </a>
             <a href="{{ route('procurement.approvals.pr') }}" class="btn btn-sm btn-light border fw-bold text-slate-600">
                 <i class="bi bi-arrow-left me-1"></i> Antrean Persetujuan
             </a>

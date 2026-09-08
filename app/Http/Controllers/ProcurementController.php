@@ -146,6 +146,13 @@ class ProcurementController extends Controller
         return view('procurement.pr.show', compact('pr'));
     }
 
+    public function prPrint($id)
+    {
+        $pr = PurchaseRequest::with(['organization', 'requester', 'approver', 'items.item.category'])->findOrFail($id);
+
+        return view('procurement.pr.print', compact('pr'));
+    }
+
     public function prUpdate(Request $request, $id)
     {
         $pr = PurchaseRequest::with('items.purchaseOrderItems')->findOrFail($id);

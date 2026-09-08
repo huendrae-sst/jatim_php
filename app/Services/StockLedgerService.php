@@ -140,4 +140,31 @@ class StockLedgerService
             ]);
         });
     }
+
+    public function postInitialStock(Warehouse $warehouse, Item $item, int $qtyGood, int $qtyDamaged, float $unitCost, string $refNo, string $notes, ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qtyGood, $qtyDamaged, $unitCost, $refNo, $notes, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+            $balance->on_hand = max(0, $qtyGood);
+            $balance->damaged = max(0, $qtyDamaged);
+            $balance->save();
+
+            $totalQty = $qtyGood + $qtyDamaged;
+            $finalCost = $unitCost > 0 ? $unitCost : (float) $item->estimated_unit_price;
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'STOCK_INITIAL',
+                'reference_number' => $refNo,
+                'qty_in' => $totalQty,
+                'qty_out' => 0,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $finalCost,
+                'total_value' => $totalQty * $finalCost,
+                'notes' => $notes,
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
 }

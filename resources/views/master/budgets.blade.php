@@ -38,6 +38,10 @@
                     <i class="bi bi-plus-circle"></i>
                     <span>Tambah Alokasi Pagu</span>
                 </button>
+                <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-secondary fw-bold shadow-xs d-inline-flex align-items-center gap-1" title="Cetak Halaman Ini">
+                    <i class="bi bi-printer"></i>
+                    <span>Cetak</span>
+                </button>
             </div>
         </div>
 

@@ -133,7 +133,7 @@ class OrderApprovalWorkflowTest extends TestCase
         $response = $this->actingAs($user)->get(route('orders.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('Daftar Order Permintaan Barang');
+        $response->assertSee('Order Terbuka');
         $response->assertSee('Buat Order Baru');
         $response->assertDontSee('selectAll');
     }
@@ -205,5 +205,37 @@ class OrderApprovalWorkflowTest extends TestCase
         $response->assertSee('name="sort_by"', false);
         $response->assertSee('name="search"', false);
         $response->assertSee('Reset');
+    }
+
+    public function test_orders_index_tabbed_open_and_completed(): void
+    {
+        $user = User::where('role', 'SUPER_ADMIN')->first();
+
+        // 1. Default Tab (Order Terbuka)
+        $defaultResponse = $this->actingAs($user)->get(route('orders.index'));
+        $defaultResponse->assertStatus(200);
+        $defaultResponse->assertSee('Order Terbuka');
+        $defaultResponse->assertSee('Riwayat Order');
+        $defaultResponse->assertSee('Semua');
+
+        $openOrders = $defaultResponse->viewData('orders');
+        foreach ($openOrders as $order) {
+            $this->assertNotContains($order->status, ['COMPLETED', 'RECEIVED', 'REJECTED', 'CANCELLED']);
+        }
+
+        // 2. Completed / Riwayat Order Tab
+        $completedResponse = $this->actingAs($user)->get(route('orders.index', ['tab' => 'completed']));
+        $completedResponse->assertStatus(200);
+        $completedOrders = $completedResponse->viewData('orders');
+        $this->assertGreaterThan(0, $completedOrders->count());
+        foreach ($completedOrders as $order) {
+            $this->assertContains($order->status, ['COMPLETED', 'RECEIVED']);
+        }
+
+        // 3. All Orders Tab
+        $allResponse = $this->actingAs($user)->get(route('orders.index', ['tab' => 'all']));
+        $allResponse->assertStatus(200);
+        $allOrders = $allResponse->viewData('orders');
+        $this->assertEquals(Order::count(), $allResponse->viewData('totalOrdersCount'));
     }
 }

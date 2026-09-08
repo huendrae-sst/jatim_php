@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\EarlyWarningController;
+use App\Http\Controllers\InitialStockController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\OrderController;
@@ -36,6 +37,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/pr', [ProcurementController::class, 'prIndex'])->name('pr.index');
         Route::post('/pr', [ProcurementController::class, 'prStore'])->name('pr.store');
         Route::get('/pr/{id}', [ProcurementController::class, 'prShow'])->name('pr.show');
+        Route::get('/pr/{id}/print', [ProcurementController::class, 'prPrint'])->name('pr.print');
         Route::put('/pr/{id}', [ProcurementController::class, 'prUpdate'])->name('pr.update');
         Route::delete('/pr/{id}', [ProcurementController::class, 'prDestroy'])->name('pr.destroy');
         Route::post('/pr/{id}/approve', [ProcurementController::class, 'prApprove'])->name('pr.approve');
@@ -69,6 +71,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/approvals', [OrderController::class, 'approvals'])->name('approvals');
         Route::get('/approvals/{id}', [OrderController::class, 'approvalDetail'])->name('approvals.show');
         Route::get('/{id}', [OrderController::class, 'show'])->name('show');
+        Route::get('/{id}/print', [OrderController::class, 'print'])->name('print');
         Route::put('/{id}', [OrderController::class, 'update'])->name('update');
         Route::delete('/{id}', [OrderController::class, 'destroy'])->name('destroy');
         Route::post('/{id}/approve', [OrderController::class, 'approve'])->name('approve');
@@ -101,6 +104,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/confirm/{shipmentId}', [ReceivingController::class, 'createReceiptForm'])->name('confirm.form');
         Route::post('/confirm/{shipmentId}', [ReceivingController::class, 'confirmReceipt'])->name('confirm.store');
         Route::get('/discrepancies', [ReceivingController::class, 'discrepancies'])->name('discrepancies');
+        Route::get('/discrepancies/{id}/print', [ReceivingController::class, 'discrepancyPrint'])->name('discrepancies.print');
     });
 
     // Workflow 2: Inter-unit Financial Settlement
@@ -119,6 +123,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/stock-opname', [StockOpnameController::class, 'store'])->name('stock_opname.store');
         Route::get('/stock-opname/history', [StockOpnameController::class, 'history'])->name('stock_opname.history');
         Route::get('/stock-opname/history/{id}', [StockOpnameController::class, 'showHistory'])->name('stock_opname.history.show');
+        Route::get('/initial-stock', [InitialStockController::class, 'index'])->name('initial_stock.index');
+        Route::post('/initial-stock', [InitialStockController::class, 'store'])->name('initial_stock.store');
+        Route::get('/initial-stock/template', [InitialStockController::class, 'downloadTemplate'])->name('initial_stock.template');
+        Route::post('/initial-stock/import', [InitialStockController::class, 'import'])->name('initial_stock.import');
+        Route::get('/initial-stock/history', [InitialStockController::class, 'history'])->name('initial_stock.history');
         Route::get('/early-warning', [EarlyWarningController::class, 'index'])->name('early_warning');
         Route::post('/early-warning/scan', [EarlyWarningController::class, 'scan'])->name('early_warning.scan');
         Route::get('/early-warning/export-csv', [EarlyWarningController::class, 'exportCsv'])->name('early_warning.csv');

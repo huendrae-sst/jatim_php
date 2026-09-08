@@ -237,14 +237,14 @@
             </div>
         </div>
 
-        <!-- Box 3: Terkirim Bulan Ini -->
+        <!-- Box 3: Riwayat Order Selesai -->
         <div class="col-12 col-sm-6 col-xl-3">
             <div class="info-box shadow-xs mb-0 h-100 bg-body">
-                <span class="info-box-icon text-bg-info"><i class="bi bi-truck"></i></span>
+                <span class="info-box-icon text-bg-info"><i class="bi bi-check2-circle"></i></span>
                 <div class="info-box-content">
-                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Terkirim Bulan Ini</span>
-                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($deliveredMonthCount) }}</span>
-                    <span class="fs-9 text-secondary">Pengiriman Sukses Diterima</span>
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Riwayat Order Selesai</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($completedOrdersCount) }}</span>
+                    <span class="fs-9 text-secondary">Pesanan Selesai / Diterima</span>
                 </div>
             </div>
         </div>
@@ -264,15 +264,37 @@
 
     <!-- Main Card Container -->
     <div class="card card-outline card-danger shadow-xs">
-        <!-- Card Header with Title and Create Order Button Aligned Right -->
-        <div class="card-header border-bottom d-flex align-items-center justify-content-between py-3 px-4">
-            <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                Daftar Order Permintaan Barang
-            </h3>
-            <div class="card-tools ms-auto">
-                <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-plus-circle"></i>
-                    <span>Buat Order Baru</span>
+        <!-- Card Header with Tabs and Action Button Aligned Side-by-Side -->
+        <div class="card-header border-bottom p-3 d-flex flex-column flex-md-row justify-content-between align-items-stretch align-items-md-center gap-2">
+            <!-- Status Navigation Tabs -->
+            <ul class="nav nav-pills nav-pills-scroll flex-nowrap card-header-pills fs-7 pb-1 pb-md-0">
+                <li class="nav-item">
+                    <a href="{{ route('orders.index', array_merge(request()->except(['page', 'status']), ['tab' => 'open'])) }}" 
+                       class="nav-link {{ $currentTab === 'open' ? 'active bg-danger fw-bold' : 'text-body' }} py-1 px-3 text-nowrap">
+                        Order Terbuka
+                        <span class="badge {{ $currentTab === 'open' ? 'bg-white text-danger' : 'text-bg-warning' }} ms-1">{{ number_format($openOrdersCount) }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('orders.index', array_merge(request()->except(['page', 'status']), ['tab' => 'completed'])) }}" 
+                       class="nav-link {{ $currentTab === 'completed' ? 'active bg-danger fw-bold' : 'text-body' }} py-1 px-3 text-nowrap">
+                        Riwayat Order
+                        <span class="badge {{ $currentTab === 'completed' ? 'bg-white text-danger' : 'text-bg-success' }} ms-1">{{ number_format($completedOrdersCount) }}</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('orders.index', array_merge(request()->except(['page', 'status']), ['tab' => 'all'])) }}" 
+                       class="nav-link {{ $currentTab === 'all' ? 'active bg-danger fw-bold' : 'text-body' }} py-1 px-3 text-nowrap">
+                        Semua
+                        <span class="badge {{ $currentTab === 'all' ? 'bg-white text-danger' : 'text-bg-secondary' }} ms-1">{{ number_format($totalOrdersCount) }}</span>
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Action Button Aligned with Tabs -->
+            <div class="card-tools ms-md-auto">
+                <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs">
+                    Buat Order Baru
                 </button>
             </div>
         </div>
@@ -336,7 +358,7 @@
                     @if($search || ($organizationId && $organizationId !== 'ALL') || ($status && $status !== 'ALL') || ($sortBy && $sortBy !== 'created_at'))
                         <div class="col-auto">
                             <a href="{{ route('orders.index', ['tab' => $currentTab]) }}" class="btn btn-sm btn-outline-danger fs-8" title="Reset Filter">
-                                <i class="bi bi-x-circle me-1"></i> Reset
+                                Reset
                             </a>
                         </div>
                     @endif
@@ -470,6 +492,12 @@
                                                 title="Lihat Detail Order">
                                             <i class="bi bi-eye"></i>
                                         </button>
+                                        <a href="{{ route('orders.print', $ord->id) }}" 
+                                           target="_blank" 
+                                           class="btn-action-icon text-dark" 
+                                           title="Cetak Dokumen Order">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
                                         <button type="button" 
                                                 @click="openEditModal({{ Js::from($ord) }})" 
                                                 class="btn-action-icon text-primary" 
@@ -500,7 +528,7 @@
         </div>
 
         <!-- Standardized Bank Jatim Pagination Footer -->
-        <x-pagination-footer :paginator="$orders" :perPage="$perPage" />
+        <x-pagination-footer :paginator="$orders" :perPage="$perPage" :tab="$currentTab" />
     </div>
 
     <!-- ==================== MODAL: BUAT ORDER BARU ==================== -->
@@ -824,7 +852,13 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="card-footer bg-body-tertiary d-flex align-items-center justify-content-end gap-2 py-2.5 px-4 border-top">
+            <div class="card-footer bg-body-tertiary d-flex align-items-center justify-content-between py-2.5 px-4 border-top">
+                <a :href="'/orders/' + (viewOrder ? viewOrder.id : '') + '/print'" 
+                   target="_blank" 
+                   class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-xs">
+                    <i class="bi bi-printer"></i>
+                    <span>Cetak Order</span>
+                </a>
                 <button type="button" @click="viewModal = false" class="btn btn-sm btn-outline-secondary px-3">
                     Tutup
                 </button>

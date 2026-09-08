@@ -452,6 +452,14 @@
                                             <i class="bi bi-eye"></i>
                                         </button>
 
+                                        <!-- Print Button -->
+                                        <a href="{{ route('procurement.pr.print', $pr->id) }}" 
+                                           target="_blank" 
+                                           class="btn btn-sm btn-light border text-dark shadow-2xs py-1 px-2" 
+                                           title="Cetak Purchase Request">
+                                            <i class="bi bi-printer"></i>
+                                        </a>
+
                                         <!-- Edit Button -->
                                         <button type="button" 
                                                 @click="openEditModal({{ Js::from($pr) }})" 
@@ -615,9 +623,17 @@
                         </form>
                     </template>
                 </div>
-                <button type="button" @click="viewModal = false" class="btn btn-sm btn-outline-secondary px-3">
-                    Tutup
-                </button>
+                <div class="d-flex align-items-center gap-2">
+                    <a :href="'/procurement/pr/' + (viewPr ? viewPr.id : '') + '/print'" 
+                       target="_blank" 
+                       class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-xs">
+                        <i class="bi bi-printer"></i>
+                        <span>Cetak PR</span>
+                    </a>
+                    <button type="button" @click="viewModal = false" class="btn btn-sm btn-outline-secondary px-3">
+                        Tutup
+                    </button>
+                </div>
             </div>
         </div>
     </div>

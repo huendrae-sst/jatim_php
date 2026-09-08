@@ -9,35 +9,6 @@
 
 @section('content')
 <div class="space-y-4">
-    <!-- Alert Banner / Penjelasan EWS vs Forecasting -->
-    <div class="alert alert-light border shadow-xs d-flex align-items-center justify-content-between flex-wrap gap-2 p-3 mb-0">
-        <div class="d-flex align-items-center gap-3">
-            <div class="rounded-circle bg-danger-subtle text-danger p-2 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
-                <i class="bi bi-radar fs-4"></i>
-            </div>
-            <div>
-                <h6 class="fw-bold mb-0 text-body-emphasis">Early Warning System (EWS) Logistik & Persediaan</h6>
-                <p class="fs-8 text-secondary mb-0">
-                    Sistem pemantauan risiko anomali stok secara real-time: mendeteksi dini bahaya <strong>Stockout</strong>, <strong>Pelanggaran ROP</strong>, <strong>Overstock</strong>, <strong>Dead Stock (&ge; 90 hari)</strong>, dan <strong>Stok Rusak</strong>.
-                </p>
-            </div>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary fs-8" data-bs-toggle="modal" data-bs-target="#modalEwsConcept">
-                <i class="bi bi-question-circle me-1"></i> Beda EWS vs Forecasting?
-            </button>
-            <form action="{{ route('inventory.early_warning.scan') }}" method="POST" onsubmit="return confirm('Jalankan pemindaian menyeluruh EWS dan kirimkan notifikasi alert ke tim terkait?');">
-                @csrf
-                <button type="submit" class="btn btn-sm btn-danger fs-8">
-                    <i class="bi bi-broadcast me-1"></i> Pindai & Kirim Alert
-                </button>
-            </form>
-            <a href="{{ route('inventory.early_warning.csv', request()->query()) }}" class="btn btn-sm btn-outline-success fs-8">
-                <i class="bi bi-file-earmark-spreadsheet me-1"></i> Ekspor CSV
-            </a>
-        </div>
-    </div>
-
     <!-- Summary Metrics (AdminLTE 4 Info-Boxes) -->
     <div class="row g-3">
         <!-- 1. Kritis / Stockout -->
@@ -131,12 +102,18 @@
             <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
                 Radar Peringatan Dini Persediaan Barang
             </h3>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 ms-auto">
                 <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">
                     {{ $warnings->total() }} SKU Masuk Kriteria
                 </span>
-                <a href="{{ route('inventory.forecasting') }}" class="btn btn-sm btn-outline-danger fs-8">
-                    <i class="bi bi-graph-up-arrow me-1"></i> Buka Peramalan (Forecasting)
+                <form action="{{ route('inventory.early_warning.scan') }}" method="POST" onsubmit="return confirm('Jalankan pemindaian menyeluruh EWS dan kirimkan notifikasi alert ke tim terkait?');" class="m-0">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-danger fs-8">
+                        Pindai & Kirim Alert
+                    </button>
+                </form>
+                <a href="{{ route('inventory.early_warning.csv', request()->query()) }}" class="btn btn-sm btn-outline-success fs-8">
+                    Ekspor CSV
                 </a>
             </div>
         </div>
@@ -358,64 +335,6 @@
 
         <!-- Standardized Pagination Footer -->
         <x-pagination-footer :paginator="$warnings" :perPage="$perPage" />
-    </div>
-</div>
-
-<!-- Modal Penjelasan Konsep: EWS vs Forecasting -->
-<div class="modal fade" id="modalEwsConcept" tabindex="-1" aria-labelledby="modalEwsConceptLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title fs-6 fw-bold" id="modalEwsConceptLabel">
-                    Perbedaan EWS vs Peramalan Permintaan (Forecasting)
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-4 fs-8">
-                <div class="row g-4">
-                    <div class="col-md-6 border-end">
-                        <div class="d-flex align-items-center gap-2 mb-2 text-primary">
-                            <i class="bi bi-graph-up-arrow fs-4"></i>
-                            <h6 class="fw-bold mb-0">1. Forecasting (Peramalan)</h6>
-                        </div>
-                        <p class="text-secondary">
-                            <strong>Fokus:</strong> Memprediksi <em>volume/angka kebutuhan di masa depan</em> berdasarkan data historis mutasi pengeluaran logistik (Stock Ledger).
-                        </p>
-                        <ul class="text-secondary ps-3 mb-0">
-                            <li>Menghitung rata-rata pemakaian bulanan & harian (*Daily Demand*).</li>
-                            <li>Menghitung kebutuhan masa tunggu pengiriman (*Lead Time Demand*).</li>
-                            <li>Menetapkan batas parameter teoretis (*Safety Stock* & *Reorder Point*).</li>
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="d-flex align-items-center gap-2 mb-2 text-danger">
-                            <i class="bi bi-radar fs-4"></i>
-                            <h6 class="fw-bold mb-0">2. Early Warning System (EWS)</h6>
-                        </div>
-                        <p class="text-secondary">
-                            <strong>Fokus:</strong> Mendeteksi <em>anomali & bahaya operasional secara dini</em> agar tim logistik langsung melakukan aksi mitigasi sebelum bencana terjadi.
-                        </p>
-                        <ul class="text-secondary ps-3 mb-0">
-                            <li><strong>Stockout Alert:</strong> Mendeteksi barang habis atau tersisa &le; 3 hari.</li>
-                            <li><strong>ROP Breach:</strong> Peringatan ketika stok menembus garis batas pemesanan.</li>
-                            <li><strong>Overstock:</strong> Deteksi barang menumpuk &gt; kapasitas maksimal atau &gt; 180 hari.</li>
-                            <li><strong>Dead Stock:</strong> Deteksi barang mengendap tanpa transaksi keluar &ge; 90 hari.</li>
-                            <li><strong>Stok Rusak:</strong> Deteksi saldo barang rusak yang perlu diafkirkan.</li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="alert alert-light border mt-4 mb-0 p-3">
-                    <strong class="text-body-emphasis"><i class="bi bi-lightbulb text-warning me-1"></i> Bagaimana Keduanya Bekerja Sama?</strong>
-                    <p class="text-secondary mb-0 mt-1">
-                        Forecasting menghasilkan angka konsumsi dan ambang batas (ROP & Safety Stock). EWS menggunakan hasil peramalan tersebut untuk memonitor sisa hari ketersediaan (*Days of Supply*) secara real-time dan menyalakan alarm peringatan otomatis saat ambang batas terancam!
-                    </p>
-                </div>
-            </div>
-            <div class="modal-footer bg-body-tertiary">
-                <button type="button" class="btn btn-sm btn-secondary fs-8" data-bs-dismiss="modal">Tutup</button>
-            </div>
-        </div>
     </div>
 </div>
 @endsection

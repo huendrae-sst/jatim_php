@@ -202,4 +202,26 @@ class MasterViewsStandardizationTest extends TestCase
             $this->assertEquals(25, $resCustom->viewData('perPage'));
         }
     }
+
+    public function test_all_master_data_pages_have_print_button_next_to_add_button(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+
+        $routes = [
+            'master.items',
+            'master.organizations',
+            'master.budgets',
+            'master.accounting',
+            'master.vendors',
+            'master.users',
+        ];
+
+        foreach ($routes as $routeName) {
+            $response = $this->actingAs($admin)->get(route($routeName));
+            $response->assertStatus(200);
+            $response->assertSee('window.print()', false);
+            $response->assertSee('bi-printer', false);
+            $response->assertSee('Cetak');
+        }
+    }
 }

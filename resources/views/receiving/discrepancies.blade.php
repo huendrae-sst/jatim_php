@@ -237,12 +237,20 @@
                                 </span>
                             </td>
                             <td class="pe-3 text-center">
-                                <button type="button" 
-                                        class="btn-action-icon text-secondary" 
-                                        @click="openDiscrepancyModal({{ json_encode($discJson) }})"
-                                        title="Lihat Detail Berita Acara">
-                                    <i class="bi bi-eye"></i>
-                                </button>
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <button type="button" 
+                                            class="btn-action-icon text-secondary" 
+                                            @click="openDiscrepancyModal({{ json_encode($discJson) }})"
+                                            title="Lihat Detail Berita Acara">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <a href="{{ route('receiving.discrepancies.print', $disc->id) }}" 
+                                       target="_blank" 
+                                       class="btn-action-icon text-dark" 
+                                       title="Cetak Berita Acara Discrepancy">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     @empty
@@ -351,7 +359,13 @@
                 </div>
             </div>
 
-            <div class="px-4 py-3 bg-light border-top d-flex align-items-center justify-content-end gap-2">
+            <div class="px-4 py-3 bg-light border-top d-flex align-items-center justify-content-between gap-2">
+                <a :href="'/receiving/discrepancies/' + detailData.id + '/print'" 
+                   target="_blank" 
+                   class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-xs">
+                    <i class="bi bi-printer"></i>
+                    <span>Cetak Berita Acara</span>
+                </a>
                 <button type="button" class="btn btn-sm btn-secondary" @click="detailModalOpen = false">Tutup</button>
             </div>
         </div>

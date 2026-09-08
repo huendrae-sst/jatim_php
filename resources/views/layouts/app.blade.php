@@ -653,12 +653,34 @@
             color: #ffffff !important;
         }
 
-        /* Modal sticky headers */
-        [data-bs-theme="dark"] thead.sticky-top,
-        [data-bs-theme="dark"] thead.sticky-top th {
-            background-color: var(--bs-secondary-bg) !important;
-            color: #cbd5e1 !important;
-            border-color: var(--bs-border-color) !important;
+        /* Print Styles */
+        @media print {
+            .app-header,
+            .app-sidebar,
+            .app-footer,
+            .card-tools,
+            .btn,
+            .pagination,
+            .alert,
+            .d-print-none {
+                display: none !important;
+            }
+            .app-wrapper,
+            .app-main,
+            .app-content {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            .card {
+                border: 1px solid #dee2e6 !important;
+                box-shadow: none !important;
+            }
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
         }
     </style>
 </head>
@@ -1028,13 +1050,13 @@
                                             <li class="nav-item">
                                                 <a href="{{ route('receiving.po.index') }}" class="nav-link {{ request()->routeIs('receiving.po.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Barang PO</p>
+                                                    <p>Penerimaan PO</p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
                                                 <a href="{{ route('receiving.index') }}" class="nav-link {{ request()->routeIs('receiving.index') || request()->routeIs('receiving.confirm.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Barang Cabang</p>
+                                                    <p>Penerimaan Cabang</p>
                                                 </a>
                                             </li>
                                             <li class="nav-item">
@@ -1070,6 +1092,12 @@
                                                 </a>
                                             </li>
                                             @if(auth()->user()->canAccessModule('inventory_ops'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('inventory.initial_stock.index') }}" class="nav-link {{ request()->routeIs('inventory.initial_stock.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Saldo Awal Gudang</p>
+                                                    </a>
+                                                </li>
                                                 <li class="nav-item">
                                                     <a href="{{ route('inventory.stock_opname') }}" class="nav-link {{ request()->routeIs('inventory.stock_opname') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>

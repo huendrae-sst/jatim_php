@@ -141,15 +141,8 @@
                                     <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" :class="wh.type === 'CENTRAL_LOGISTICS' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'" x-text="wh.type === 'CENTRAL_LOGISTICS' ? 'PUSAT' : 'CABANG'"></span>
                                 </a>
                             </template>
-                        </div>
                     </div>
                 </div>
-
-                <!-- Link to History -->
-                <a :href="'{{ route('inventory.stock_opname.history') }}?warehouse_id={{ $selectedWarehouseId }}&period_year=' + selectedYear + '&period_month=' + selectedMonth" class="inline-flex items-center space-x-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold px-3 py-2 rounded-xl transition shadow-sm">
-                    <i class="bi bi-clock-history text-danger"></i>
-                    <span>Riwayat Opname</span>
-                </a>
             </div>
         </div>
     </div>
