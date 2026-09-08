@@ -81,6 +81,13 @@
         .fs-7 { font-size: 0.875rem !important; }
         .fs-8 { font-size: 0.75rem !important; }
         .fs-9 { font-size: 0.6875rem !important; }
+
+        input[type="password"] {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        input[type="password"]::placeholder {
+            font-family: var(--bs-font-sans-serif);
+        }
     </style>
 </head>
 <body class="register-page bg-body-secondary">
@@ -115,7 +122,7 @@
                     <!-- Full Name -->
                     <label class="visually-hidden" for="registerName">Full Name</label>
                     <div class="input-group mb-3">
-                        <input id="registerName" type="text" name="name" value="{{ old('name') }}" required class="form-control" />
+                        <input id="registerName" type="text" name="name" value="{{ old('name') }}" required class="form-control" placeholder="Full Name" autocomplete="name" />
                         <div class="input-group-text">
                             <span class="bi bi-person"></span>
                         </div>
@@ -124,7 +131,7 @@
                     <!-- NIP / NIK -->
                     <label class="visually-hidden" for="registerNip">NIP / NIK Pegawai</label>
                     <div class="input-group mb-3">
-                        <input id="registerNip" type="text" name="nip" value="{{ old('nip') }}" class="form-control" />
+                        <input id="registerNip" type="text" name="nip" value="{{ old('nip') }}" class="form-control" placeholder="NIP / NIK Pegawai" />
                         <div class="input-group-text">
                             <span class="bi bi-person-badge"></span>
                         </div>
@@ -133,7 +140,7 @@
                     <!-- Email -->
                     <label class="visually-hidden" for="registerEmail">Email</label>
                     <div class="input-group mb-3">
-                        <input id="registerEmail" type="email" name="email" value="{{ old('email') }}" required class="form-control" />
+                        <input id="registerEmail" type="email" name="email" value="{{ old('email') }}" required class="form-control" placeholder="Email" autocomplete="email" />
                         <div class="input-group-text">
                             <span class="bi bi-envelope"></span>
                         </div>
@@ -158,7 +165,7 @@
                     <!-- Password -->
                     <label class="visually-hidden" for="registerPassword">Password</label>
                     <div class="input-group mb-3">
-                        <input id="registerPassword" type="password" name="password" required class="form-control" />
+                        <input id="registerPassword" type="password" name="password" required class="form-control" placeholder="Password" autocomplete="new-password" />
                         <div class="input-group-text">
                             <span class="bi bi-lock-fill"></span>
                         </div>
@@ -167,7 +174,7 @@
                     <!-- Confirm Password -->
                     <label class="visually-hidden" for="registerPasswordConfirm">Confirm Password</label>
                     <div class="input-group mb-3">
-                        <input id="registerPasswordConfirm" type="password" name="password_confirmation" required class="form-control" />
+                        <input id="registerPasswordConfirm" type="password" name="password_confirmation" required class="form-control" placeholder="Confirm Password" autocomplete="new-password" />
                         <div class="input-group-text">
                             <span class="bi bi-shield-lock"></span>
                         </div>

@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Organization extends Model
 {
@@ -47,5 +48,15 @@ class Organization extends Model
         $year = $year ?: date('Y');
 
         return $this->budgets()->where('year', $year)->first();
+    }
+
+    public function costCenter(): HasOne
+    {
+        return $this->hasOne(CostCenter::class);
+    }
+
+    public function costCenters(): HasMany
+    {
+        return $this->hasMany(CostCenter::class);
     }
 }

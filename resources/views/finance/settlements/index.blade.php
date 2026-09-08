@@ -10,6 +10,57 @@
 @section('content')
 <div class="space-y-4">
 
+    <!-- Summary Metrics (AdminLTE 4 Info-Boxes) -->
+    <div class="row g-3">
+        <!-- 1. Perlu Settlement -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-info"><i class="bi bi-file-earmark-text"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Perlu Settlement</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace {{ $unsettledCount > 0 ? 'text-primary' : 'text-body-emphasis' }}">{{ number_format($unsettledCount) }} Order</span>
+                    <span class="fs-9 text-secondary">Order diterima belum disettlement</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Menunggu Approval -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-warning"><i class="bi bi-hourglass-split"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Menunggu Approval</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace {{ $waitingApprovalCount > 0 ? 'text-warning-emphasis' : 'text-body-emphasis' }}">{{ number_format($waitingApprovalCount) }} Draft</span>
+                    <span class="fs-9 text-secondary">Verifikasi & posting finance</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Telah Diposting -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-success"><i class="bi bi-check2-circle"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Telah Diposting</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-success">{{ number_format($postedCount) }} Jurnal</span>
+                    <span class="fs-9 text-secondary">Realisasi beban anggaran selesai</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Total Nilai Settlement -->
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-danger"><i class="bi bi-cash-stack"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Total Nilai Settlement</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">Rp {{ number_format($totalAmount, 0, ',', '.') }}</span>
+                    <span class="fs-9 text-secondary">Akumulasi settlement antar-unit</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Orders Waiting for Settlement Generation -->
     @if($unsettledOrders->count() > 0)
         <div class="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 space-y-4">

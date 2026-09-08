@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SwitchingStock extends Model
 {
@@ -15,6 +16,33 @@ class SwitchingStock extends Model
     protected $casts = [
         'qty_requested' => 'integer',
     ];
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(SwitchingStockItem::class);
+    }
+
+    public function getTotalQtyAttribute(): int
+    {
+        if ($this->relationLoaded('items') && $this->items->isNotEmpty()) {
+            return (int) $this->items->sum('qty_requested');
+        }
+
+        $sum = $this->items()->sum('qty_requested');
+
+        return (int) ($sum ?: $this->qty_requested);
+    }
+
+    public function getTotalItemsCountAttribute(): int
+    {
+        if ($this->relationLoaded('items')) {
+            return $this->items->count();
+        }
+
+        $count = $this->items()->count();
+
+        return (int) ($count ?: ($this->item_id ? 1 : 0));
+    }
 
     public function order(): BelongsTo
     {

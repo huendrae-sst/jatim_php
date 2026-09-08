@@ -81,6 +81,13 @@
         .fs-7 { font-size: 0.875rem !important; }
         .fs-8 { font-size: 0.75rem !important; }
         .fs-9 { font-size: 0.6875rem !important; }
+
+        input[type="password"] {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        input[type="password"]::placeholder {
+            font-family: var(--bs-font-sans-serif);
+        }
     </style>
 </head>
 <body class="login-page bg-body-secondary">
@@ -101,7 +108,7 @@
         <!-- Login Card -->
         <div class="card card-outline card-danger shadow-sm">
             <div class="card-body login-card-body">
-                <p class="login-box-msg text-body-secondary">Sign in to start your session</p>
+                <p class="login-box-msg text-body-secondary">Login</p>
 
                 @if($errors->any())
                     <div class="alert alert-danger py-2 px-3 fs-7 mb-3" role="alert">
@@ -125,7 +132,7 @@
                     @csrf
                     <label class="visually-hidden" for="loginEmail">Email</label>
                     <div class="input-group mb-3">
-                        <input id="loginEmail" type="email" name="email" value="{{ old('email', 'admin@bankjatim.co.id') }}" required class="form-control" placeholder="Email" autocomplete="username" />
+                        <input id="loginEmail" type="email" name="email" value="{{ old('email') }}" required class="form-control" placeholder="Email" autocomplete="username" />
                         <div class="input-group-text">
                             <span class="bi bi-envelope"></span>
                         </div>
@@ -133,7 +140,7 @@
 
                     <label class="visually-hidden" for="loginPassword">Password</label>
                     <div class="input-group mb-3">
-                        <input id="loginPassword" type="password" name="password" value="password123" required class="form-control" placeholder="Password" autocomplete="current-password" />
+                        <input id="loginPassword" type="password" name="password" required class="form-control" placeholder="Password" autocomplete="current-password" />
                         <div class="input-group-text">
                             <span class="bi bi-lock-fill"></span>
                         </div>
@@ -158,11 +165,8 @@
                     <!--end::Row-->
                 </form>
 
-                <p class="mb-1 text-center">
-                    <a href="{{ route('password.request') }}" class="text-decoration-none fs-7">I forgot my password</a>
-                </p>
                 <p class="mb-0 text-center">
-                    <a href="{{ route('register') }}" class="text-decoration-none fs-7">Register a new membership</a>
+                    <a href="{{ route('password.request') }}" class="text-decoration-none fs-7">I forgot my password</a>
                 </p>
             </div>
             <!-- /.login-card-body -->

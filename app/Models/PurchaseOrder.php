@@ -20,6 +20,7 @@ class PurchaseOrder extends Model
         'subtotal' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'approved_at' => 'datetime',
     ];
 
     public function vendor(): BelongsTo

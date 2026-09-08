@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Category;
+use App\Models\ChartOfAccount;
+use App\Models\CostCenter;
 use App\Models\Courier;
 use App\Models\Item;
 use App\Models\ItemConversion;
@@ -1155,5 +1157,228 @@ class MasterDataController extends Controller
         $logs = AuditLog::with(['user', 'organization'])->latest()->paginate($logsPerPage)->withQueryString();
 
         return view('audit.index', compact('logs'));
+    }
+
+    // Accounting Master: Chart of Accounts (CoA) & Cost Centers
+    public function accountingIndex(Request $request)
+    {
+        $tab = $request->get('tab');
+        if (! $tab) {
+            if ($request->has('cc_page') || $request->has('cc_search') || $request->has('cc_org_id') || $request->has('cc_status')) {
+                $tab = 'cost_centers';
+            } else {
+                $tab = 'coa';
+            }
+        }
+
+        // CoA Filters
+        $coaSearch = $request->get('coa_search');
+        $coaType = $request->get('coa_type');
+        $coaStatus = $request->get('coa_status');
+
+        $coaQuery = ChartOfAccount::query();
+
+        if ($coaSearch) {
+            $coaQuery->where(function ($q) use ($coaSearch) {
+                $q->where('account_code', 'like', "%{$coaSearch}%")
+                    ->orWhere('account_name', 'like', "%{$coaSearch}%")
+                    ->orWhere('classification', 'like', "%{$coaSearch}%")
+                    ->orWhere('description', 'like', "%{$coaSearch}%");
+            });
+        }
+
+        if ($coaType && $coaType !== 'ALL') {
+            $coaQuery->where('account_type', $coaType);
+        }
+
+        if ($coaStatus && $coaStatus !== 'ALL') {
+            $coaQuery->where('is_active', $coaStatus === 'ACTIVE');
+        }
+
+        $coaPerPage = in_array((int) $request->get('coa_per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('coa_per_page') : 10;
+        $coas = $coaQuery->orderBy('account_code')->paginate($coaPerPage, ['*'], 'coa_page')->withQueryString();
+
+        // Cost Center Filters
+        $ccSearch = $request->get('cc_search');
+        $ccOrgId = $request->get('cc_org_id');
+        $ccStatus = $request->get('cc_status');
+
+        $ccQuery = CostCenter::with('organization');
+
+        if ($ccSearch) {
+            $ccQuery->where(function ($q) use ($ccSearch) {
+                $q->where('code', 'like', "%{$ccSearch}%")
+                    ->orWhere('name', 'like', "%{$ccSearch}%")
+                    ->orWhere('department', 'like', "%{$ccSearch}%")
+                    ->orWhere('pic_name', 'like', "%{$ccSearch}%")
+                    ->orWhereHas('organization', fn ($oq) => $oq->where('name', 'like', "%{$ccSearch}%")->orWhere('code', 'like', "%{$ccSearch}%"));
+            });
+        }
+
+        if ($ccOrgId && $ccOrgId !== 'ALL') {
+            $ccQuery->where('organization_id', $ccOrgId);
+        }
+
+        if ($ccStatus && $ccStatus !== 'ALL') {
+            $ccQuery->where('is_active', $ccStatus === 'ACTIVE');
+        }
+
+        $ccPerPage = in_array((int) $request->get('cc_per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('cc_per_page') : 10;
+        $costCenters = $ccQuery->orderBy('code')->paginate($ccPerPage, ['*'], 'cc_page')->withQueryString();
+
+        // Summary KPI Counts
+        $totalCoa = ChartOfAccount::count();
+        $totalAssetCoa = ChartOfAccount::where('account_type', 'ASSET')->count();
+        $totalExpenseCoa = ChartOfAccount::where('account_type', 'EXPENSE')->count();
+        $totalCostCenter = CostCenter::count();
+
+        $organizations = Organization::where('is_active', true)->orderBy('name')->get();
+
+        return view('master.accounting', compact(
+            'tab',
+            'coas',
+            'costCenters',
+            'totalCoa',
+            'totalAssetCoa',
+            'totalExpenseCoa',
+            'totalCostCenter',
+            'organizations',
+            'coaSearch',
+            'coaType',
+            'coaStatus',
+            'coaPerPage',
+            'ccSearch',
+            'ccOrgId',
+            'ccStatus',
+            'ccPerPage'
+        ));
+    }
+
+    public function coaStore(Request $request)
+    {
+        $validated = $request->validate([
+            'account_code' => 'required|string|max:50|unique:chart_of_accounts,account_code',
+            'account_name' => 'required|string|max:255',
+            'account_type' => 'required|in:ASSET,LIABILITY,EQUITY,REVENUE,EXPENSE',
+            'normal_balance' => 'required|in:DEBIT,CREDIT',
+            'classification' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $validated['is_active'] = $request->has('is_active') ? (bool) $request->input('is_active') : true;
+
+        $coa = ChartOfAccount::create($validated);
+
+        return redirect()->route('master.accounting', ['tab' => 'coa'])
+            ->with('success', "Rekening Akun GL [{$coa->account_code}] {$coa->account_name} berhasil ditambahkan.");
+    }
+
+    public function coaUpdate(Request $request, $id)
+    {
+        $coa = ChartOfAccount::findOrFail($id);
+
+        $validated = $request->validate([
+            'account_code' => 'required|string|max:50|unique:chart_of_accounts,account_code,'.$coa->id,
+            'account_name' => 'required|string|max:255',
+            'account_type' => 'required|in:ASSET,LIABILITY,EQUITY,REVENUE,EXPENSE',
+            'normal_balance' => 'required|in:DEBIT,CREDIT',
+            'classification' => 'nullable|string|max:100',
+            'description' => 'nullable|string',
+            'is_active' => 'required|boolean',
+        ]);
+
+        $coa->update($validated);
+
+        return redirect()->route('master.accounting', ['tab' => 'coa'])
+            ->with('success', "Rekening Akun GL [{$coa->account_code}] berhasil diperbarui.");
+    }
+
+    public function coaDestroy($id)
+    {
+        $coa = ChartOfAccount::findOrFail($id);
+        $code = $coa->account_code;
+        $name = $coa->account_name;
+        $coa->delete();
+
+        return redirect()->route('master.accounting', ['tab' => 'coa'])
+            ->with('success', "Rekening Akun GL [{$code}] {$name} berhasil dihapus.");
+    }
+
+    public function coaToggleStatus($id)
+    {
+        $coa = ChartOfAccount::findOrFail($id);
+        $coa->is_active = ! $coa->is_active;
+        $coa->save();
+
+        $statusText = $coa->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return redirect()->route('master.accounting', ['tab' => 'coa'])
+            ->with('success', "Status Rekening GL [{$coa->account_code}] berhasil {$statusText}.");
+    }
+
+    public function costCenterStore(Request $request)
+    {
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:cost_centers,code',
+            'name' => 'required|string|max:255',
+            'organization_id' => 'nullable|exists:organizations,id',
+            'department' => 'nullable|string|max:100',
+            'pic_name' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
+            'is_active' => 'nullable|boolean',
+        ]);
+
+        $validated['code'] = strtoupper(trim($validated['code']));
+        $validated['is_active'] = $request->has('is_active') ? (bool) $request->input('is_active') : true;
+
+        $costCenter = CostCenter::create($validated);
+
+        return redirect()->route('master.accounting', ['tab' => 'cost_centers'])
+            ->with('success', "Cost Center [{$costCenter->code}] {$costCenter->name} berhasil ditambahkan.");
+    }
+
+    public function costCenterUpdate(Request $request, $id)
+    {
+        $costCenter = CostCenter::findOrFail($id);
+
+        $validated = $request->validate([
+            'code' => 'required|string|max:50|unique:cost_centers,code,'.$costCenter->id,
+            'name' => 'required|string|max:255',
+            'organization_id' => 'nullable|exists:organizations,id',
+            'department' => 'nullable|string|max:100',
+            'pic_name' => 'nullable|string|max:100',
+            'notes' => 'nullable|string',
+            'is_active' => 'required|boolean',
+        ]);
+
+        $validated['code'] = strtoupper(trim($validated['code']));
+        $costCenter->update($validated);
+
+        return redirect()->route('master.accounting', ['tab' => 'cost_centers'])
+            ->with('success', "Cost Center [{$costCenter->code}] berhasil diperbarui.");
+    }
+
+    public function costCenterDestroy($id)
+    {
+        $costCenter = CostCenter::findOrFail($id);
+        $code = $costCenter->code;
+        $name = $costCenter->name;
+        $costCenter->delete();
+
+        return redirect()->route('master.accounting', ['tab' => 'cost_centers'])
+            ->with('success', "Cost Center [{$code}] {$name} berhasil dihapus.");
+    }
+
+    public function costCenterToggleStatus($id)
+    {
+        $costCenter = CostCenter::findOrFail($id);
+        $costCenter->is_active = ! $costCenter->is_active;
+        $costCenter->save();
+
+        $statusText = $costCenter->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return redirect()->route('master.accounting', ['tab' => 'cost_centers'])
+            ->with('success', "Status Cost Center [{$costCenter->code}] berhasil {$statusText}.");
     }
 }

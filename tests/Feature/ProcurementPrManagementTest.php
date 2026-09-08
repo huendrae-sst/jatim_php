@@ -26,7 +26,10 @@ class ProcurementPrManagementTest extends TestCase
 
         $response->assertStatus(200);
         $response->assertSee('Purchase Requests (PR)');
-        $response->assertSee('small-box', false);
+        $response->assertDontSee('<div class="info-box', false);
+        $response->assertDontSee('Daftar Purchase Request (PR)');
+        $response->assertDontSee('Total Pengajuan PR');
+        $response->assertDontSee('small-box', false);
         $response->assertSee('table-striped', false);
         $response->assertSee('openViewModal');
         $response->assertSee('openEditModal');

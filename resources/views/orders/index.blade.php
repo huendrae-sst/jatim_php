@@ -211,65 +211,53 @@
     }
 }">
 
-    <!-- AdminLTE 4 Small-Boxes (KPI Metric Widgets) -->
+    <!-- KPI Metric Widgets (AdminLTE 4 Info-Boxes) -->
     <div class="row g-3">
         <!-- Box 1: Total Orders -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-danger shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $totalOrdersCount }}</h3>
-                    <p class="mb-1 fw-semibold">Total Pesanan Masuk</p>
-                    <div class="fs-8 text-white-50">Semua Permintaan Cabang</div>
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-danger"><i class="bi bi-cart-check"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Total Pesanan Masuk</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($totalOrdersCount) }}</span>
+                    <span class="fs-9 text-secondary">Semua Permintaan Cabang</span>
                 </div>
-                <i class="small-box-icon bi bi-cart-check"></i>
-                <a href="{{ route('orders.index') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Lihat Semua Data <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
             </div>
         </div>
 
         <!-- Box 2: Open Orders -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-warning shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $openOrdersCount }}</h3>
-                    <p class="mb-1 fw-semibold">Order Terbuka / Open</p>
-                    <div class="fs-8 text-dark-emphasis">Menunggu Approval / Alokasi</div>
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-warning"><i class="bi bi-hourglass-split"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Order Terbuka / Open</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($openOrdersCount) }}</span>
+                    <span class="fs-9 text-warning-emphasis">Menunggu Approval / Alokasi</span>
                 </div>
-                <i class="small-box-icon bi bi-hourglass-split"></i>
-                <a href="{{ route('orders.index') }}" class="small-box-footer link-dark link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Daftar Order Berjalan <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
             </div>
         </div>
 
         <!-- Box 3: Terkirim Bulan Ini -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-info shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $deliveredMonthCount }}</h3>
-                    <p class="mb-1 fw-semibold">Terkirim Bulan Ini</p>
-                    <div class="fs-8 text-white-50">Pengiriman Sukses Diterima</div>
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-info"><i class="bi bi-truck"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Terkirim Bulan Ini</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($deliveredMonthCount) }}</span>
+                    <span class="fs-9 text-secondary">Pengiriman Sukses Diterima</span>
                 </div>
-                <i class="small-box-icon bi bi-truck"></i>
-                <a href="{{ route('orders.index') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Daftar Paket Terkirim <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
             </div>
         </div>
 
         <!-- Box 4: Average Order Value -->
         <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-success shadow-xs mb-0">
-                <div class="inner">
-                    <h3>Rp {{ number_format($averageOrderValue / 1000, 0, ',', '.') }}<span class="fs-6 fw-normal">rb</span></h3>
-                    <p class="mb-1 fw-semibold">Rata-Rata Nilai Order</p>
-                    <div class="fs-8 text-white-50">Rp {{ number_format($averageOrderValue, 0, ',', '.') }} per transaksi</div>
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-success"><i class="bi bi-cash-stack"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Rata-Rata Nilai Order</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-success">Rp {{ number_format($averageOrderValue / 1000, 0, ',', '.') }}<span class="fs-7 fw-normal">rb</span></span>
+                    <span class="fs-9 text-secondary">Rp {{ number_format($averageOrderValue, 0, ',', '.') }} per transaksi</span>
                 </div>
-                <i class="small-box-icon bi bi-cash-stack"></i>
-                <a href="{{ route('reports.stock_valuation') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Laporan Valuasi <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
             </div>
         </div>
     </div>

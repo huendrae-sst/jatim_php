@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Settlement;
 use App\Services\SettlementService;
 use Exception;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class SettlementController extends Controller
@@ -22,13 +23,27 @@ class SettlementController extends Controller
             ->whereDoesntHave('settlements')
             ->get();
 
+        $unsettledCount = $unsettledOrders->count();
+        $waitingApprovalCount = Settlement::where('status', 'WAITING_APPROVAL')->count();
+        $postedCount = Settlement::where('status', 'POSTED')->count();
+        $totalAmount = (float) Settlement::sum('total_amount');
+        $totalCount = Settlement::count();
+
         $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 15;
         $settlements = Settlement::with(['order.requestingOrganization', 'debitOrganization', 'creditOrganization', 'creator', 'approver'])
             ->latest()
             ->paginate($perPage)
             ->withQueryString();
 
-        return view('finance.settlements.index', compact('unsettledOrders', 'settlements'));
+        return view('finance.settlements.index', compact(
+            'unsettledOrders',
+            'settlements',
+            'unsettledCount',
+            'waitingApprovalCount',
+            'postedCount',
+            'totalAmount',
+            'totalCount'
+        ));
     }
 
     public function createFromOrder($orderId)

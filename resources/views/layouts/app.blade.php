@@ -103,6 +103,14 @@
             line-height: var(--bs-body-line-height);
         }
 
+        /* Password bullet glyph compatibility */
+        input[type="password"] {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        input[type="password"]::placeholder {
+            font-family: var(--bs-font-sans-serif);
+        }
+
         /* Headings Typography */
         h1, h2, h3, h4, h5, h6,
         .h1, .h2, .h3, .h4, .h5, .h6 {
@@ -1035,7 +1043,13 @@
                                         </a>
                                         <ul class="nav nav-treeview">
                                             <li class="nav-item">
-                                                <a href="{{ route('receiving.index') }}" class="nav-link {{ request()->routeIs('receiving.index') ? 'active' : '' }}">
+                                                <a href="{{ route('receiving.po.index') }}" class="nav-link {{ request()->routeIs('receiving.po.*') ? 'active' : '' }}">
+                                                    <i class="nav-icon bi bi-circle"></i>
+                                                    <p>Penerimaan Barang PO</p>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a href="{{ route('receiving.index') }}" class="nav-link {{ request()->routeIs('receiving.index') || request()->routeIs('receiving.confirm.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
                                                     <p>Penerimaan Barang Cabang</p>
                                                 </a>
@@ -1074,9 +1088,15 @@
                                             </li>
                                             @if(auth()->user()->canAccessModule('inventory_ops'))
                                                 <li class="nav-item">
-                                                    <a href="{{ route('inventory.stock_opname') }}" class="nav-link {{ request()->routeIs('inventory.stock_opname*') ? 'active' : '' }}">
+                                                    <a href="{{ route('inventory.stock_opname') }}" class="nav-link {{ request()->routeIs('inventory.stock_opname') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
                                                         <p>Stock Opname Fisik</p>
+                                                    </a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a href="{{ route('inventory.stock_opname.history') }}" class="nav-link {{ request()->routeIs('inventory.stock_opname.history*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>History Stock Opname</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1115,14 +1135,12 @@
                                                     <p>Purchase Request (PR)</p>
                                                 </a>
                                             </li>
-                                            @if(auth()->user()->canAccessModule('procurement_maker') || auth()->user()->isSuperAdmin())
-                                                <li class="nav-item">
-                                                    <a href="{{ route('procurement.pr.create') }}" class="nav-link {{ request()->routeIs('procurement.pr.create') ? 'active' : '' }}">
-                                                        <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Buat PR Baru</p>
-                                                    </a>
-                                                </li>
-                                            @endif
+                                            <li class="nav-item">
+                                                <a href="{{ route('procurement.approvals.pr') }}" class="nav-link {{ request()->routeIs('procurement.approvals.pr*') ? 'active' : '' }}">
+                                                    <i class="nav-icon bi bi-circle"></i>
+                                                    <p>Approval PR</p>
+                                                </a>
+                                            </li>
                                             <li class="nav-item">
                                                 <a href="{{ route('procurement.consolidation.index') }}" class="nav-link {{ request()->routeIs('procurement.consolidation.*') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
@@ -1130,9 +1148,15 @@
                                                 </a>
                                             </li>
                                             <li class="nav-item">
-                                                <a href="{{ route('procurement.po.index') }}" class="nav-link {{ request()->routeIs('procurement.po.*') ? 'active' : '' }}">
+                                                <a href="{{ route('procurement.po.index') }}" class="nav-link {{ request()->routeIs('procurement.po.index') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
                                                     <p>Purchase Order (PO)</p>
+                                                </a>
+                                            </li>
+                                            <li class="nav-item">
+                                                <a href="{{ route('procurement.approvals.po') }}" class="nav-link {{ request()->routeIs('procurement.approvals.po*') ? 'active' : '' }}">
+                                                    <i class="nav-icon bi bi-circle"></i>
+                                                    <p>Approval PO</p>
                                                 </a>
                                             </li>
                                         </ul>
@@ -1186,6 +1210,14 @@
                                                     <a href="{{ route('master.budgets') }}" class="nav-link {{ request()->routeIs('master.budgets') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
                                                         <p>Pagu Anggaran Cabang</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('master_data') || auth()->user()->canAccessModule('master_accounting'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('master.accounting') }}" class="nav-link {{ request()->routeIs('master.accounting*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Rekening GL & Cost Center</p>
                                                     </a>
                                                 </li>
                                             @endif

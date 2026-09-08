@@ -116,6 +116,7 @@ class User extends Authenticatable
             'master_data' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'USER_ADMIN', 'AUDITOR'], true),
             'master_items' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'INVENTORY_OFFICER', 'AUDITOR'], true),
             'master_budgets' => in_array($this->role, ['BUDGET_OFFICER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'AUDITOR'], true),
+            'master_accounting' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'USER_ADMIN', 'AUDITOR'], true),
             'master_vendors' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'PROCUREMENT_OFFICER', 'AUDITOR'], true),
             'master_users' => in_array($this->role, ['USER_ADMIN', 'IT_OPS', 'AUDITOR'], true),
             'audit' => in_array($this->role, ['AUDITOR', 'IT_OPS', 'USER_ADMIN'], true),
@@ -148,6 +149,6 @@ class User extends Authenticatable
             'IT_OPS' => 'IT Operations',
         ];
 
-        return $roleMap[$this->role] ?? $this->role;
+        return $roleMap[$this->role] ?? ($this->role ?: 'User');
     }
 }

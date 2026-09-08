@@ -3,60 +3,88 @@
 
 @section('breadcrumbs')
     <li class="breadcrumb-item"><a href="{{ route('dashboard') }}" class="text-decoration-none text-danger">Home</a></li>
-    <li class="breadcrumb-item">Logistik</li>
+    <li class="breadcrumb-item">Logistik & Gudang</li>
     <li class="breadcrumb-item active" aria-current="page">Packing List</li>
 @endsection
 
 @section('content')
 <div class="space-y-4" x-data="{ packModal: false, selectedOrder: null }">
-    <!-- Action Bar -->
-    <div class="d-flex justify-content-end align-items-center gap-2">
-        <a href="{{ route('distribution.shipments.index') }}" class="btn btn-sm btn-dark fw-bold shadow-xs">
-            <i class="bi bi-truck me-1"></i> Buka Modul Distribusi
-        </a>
-    </div>
 
-    <!-- Orders Table -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 class="font-bold text-sm text-slate-900">Order Menunggu Packing (Status: PICKING)</h3>
-            <span class="text-xs bg-purple-50 text-purple-700 font-bold px-2.5 py-0.5 rounded-full">{{ $pickingOrders->count() }} Order</span>
+    <!-- Main Card -->
+    <div class="card card-outline card-danger shadow-xs mb-0">
+        <div class="card-header p-3 border-bottom d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-boxes text-danger fs-5"></i>
+                <h3 class="card-title fw-bold text-slate-800 fs-6 mb-0">
+                    Antrean Pengepakan (Status: PICKING)
+                    @if($pickingOrders->count() > 0)
+                        <span class="badge bg-danger rounded-pill ms-1">{{ $pickingOrders->count() }}</span>
+                    @endif
+                </h3>
+            </div>
+            <div>
+                <a href="{{ route('distribution.shipments.index') }}" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 shadow-xs">
+                    <i class="bi bi-truck"></i>
+                    <span>Buka Modul Distribusi</span>
+                </a>
+            </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle mb-0 fs-7">
+                <thead class="table-light text-secondary text-uppercase fs-8 border-bottom">
                     <tr>
-                        <th class="py-3 px-4">No. Order</th>
-                        <th class="py-3 px-4">Tujuan Unit</th>
-                        <th class="py-3 px-4">Item Fisik Diambil</th>
-                        <th class="py-3 px-4 text-center">Total Qty</th>
-                        <th class="py-3 px-4 text-center">Aksi Pengepakan</th>
+                        <th class="ps-3 py-2" style="width: 170px;">No. Order & Tanggal</th>
+                        <th class="py-2" style="width: 220px;">Tujuan Unit Kerja</th>
+                        <th class="py-2">Item Fisik Diambil</th>
+                        <th class="py-2 text-center" style="width: 110px;">Total Qty</th>
+                        <th class="pe-3 py-2 text-center" style="width: 90px;">Aksi</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody>
                     @forelse($pickingOrders as $ord)
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="py-3.5 px-4 font-bold text-slate-900">{{ $ord->order_number }}</td>
-                            <td class="py-3.5 px-4 font-semibold text-slate-800">{{ $ord->requestingOrganization->name }}</td>
-                            <td class="py-3.5 px-4">
-                                <ul class="list-disc list-inside text-slate-600 space-y-0.5">
+                        <tr>
+                            <td class="ps-3">
+                                <span class="font-monospace fw-bold text-slate-900 d-block">{{ $ord->order_number }}</span>
+                                <small class="text-muted fs-8">{{ $ord->order_date ? $ord->order_date->format('d M Y') : '-' }}</small>
+                            </td>
+                            <td>
+                                <span class="fw-semibold text-slate-800 d-block">{{ $ord->requestingOrganization->name }}</span>
+                                <small class="text-muted fs-8">{{ $ord->requestingOrganization->city ?? '-' }}</small>
+                            </td>
+                            <td>
+                                <ul class="list-unstyled mb-0 space-y-1">
                                     @foreach($ord->items as $it)
-                                        <li>{{ $it->item->name }} (<strong>{{ $it->qty_picked }} {{ $it->item->uom }}</strong>)</li>
+                                        <li class="d-flex align-items-center justify-content-between pe-2">
+                                            <span class="text-slate-800">{{ $it->item->name }}</span>
+                                            <span class="badge bg-danger-subtle text-danger-emphasis font-monospace ms-2">
+                                                {{ $it->qty_picked }} {{ $it->item->uom }}
+                                            </span>
+                                        </li>
                                     @endforeach
                                 </ul>
                             </td>
-                            <td class="py-3.5 px-4 text-center font-bold text-slate-900">{{ $ord->items->sum('qty_picked') }}</td>
-                            <td class="py-3.5 px-4 text-center">
-                                <button @click="selectedOrder = {{ Js::from($ord) }}; packModal = true" class="bg-purple-600 hover:bg-purple-700 text-white font-bold px-3.5 py-1.5 rounded-lg text-xs shadow-sm transition inline-flex items-center space-x-1">
-                                    <i class="fa-solid fa-box-open"></i>
-                                    <span>Input Koli & Selesaikan Packing</span>
+                            <td class="text-center">
+                                <span class="badge text-bg-light border font-monospace fs-7 fw-bold">
+                                    {{ $ord->items->sum('qty_picked') }}
+                                </span>
+                            </td>
+                            <td class="pe-3 text-center">
+                                <button type="button" 
+                                        @click="selectedOrder = {{ Js::from($ord) }}; packModal = true" 
+                                        class="btn-action-icon text-danger" 
+                                        title="Input Koli & Selesaikan Packing">
+                                    <i class="bi bi-box-seam"></i>
                                 </button>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="py-6 text-center text-slate-400">Tidak ada order yang menunggu pengepakan.</td>
+                            <td colspan="5" class="text-center py-5 text-muted">
+                                <i class="bi bi-inbox fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                <span class="fw-semibold">Tidak ada order yang menunggu pengepakan saat ini.</span>
+                                <p class="fs-8 text-muted mb-0">Semua order yang selesai picking telah dipacking.</p>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>
@@ -64,45 +92,101 @@
         </div>
     </div>
 
-    <!-- Packing Modal -->
-    <div x-show="packModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
-        <div @click.away="packModal = false" class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 pe-5">
-                <h3 class="font-bold text-base text-slate-900">Form Pengepakan Barang (Packing List)</h3>
-                <button type="button" @click="packModal = false" class="btn-close" aria-label="Close"></button>
+    <!-- Packing Modal (Standard Bank Jatim) -->
+    <div x-show="packModal" 
+         x-cloak 
+         class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4" 
+         style="display: none;"
+         @keydown.escape.window="packModal = false">
+        
+        <div class="bg-white rounded-3 shadow-xl max-w-lg w-full flex flex-col overflow-hidden" 
+             @click.outside="packModal = false">
+            
+            <!-- Modal Header -->
+            <div class="bg-danger text-white px-4 py-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-box-seam fs-5"></i>
+                    <div>
+                        <h5 class="modal-title mb-0 fs-6 fw-bold">Form Pengepakan Barang (Packing List)</h5>
+                        <small class="text-white-50 fs-8">Verifikasi koli dan bobot paket sebelum ekspedisi</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" @click="packModal = false" aria-label="Close"></button>
             </div>
 
-            <form :action="'/warehouse/packing/' + selectedOrder?.id + '/process'" method="POST" class="space-y-4">
+            <!-- Modal Form Body -->
+            <form :action="'{{ url('/warehouse/packing') }}/' + selectedOrder?.id + '/process'" method="POST">
                 @csrf
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                    <div>No. Order: <strong class="text-slate-900" x-text="selectedOrder?.order_number"></strong></div>
-                    <div>Tujuan: <span class="text-slate-700" x-text="selectedOrder?.requesting_organization?.name"></span></div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Jumlah Koli (Box/Karton)</label>
-                        <input type="number" name="koli_count" value="1" min="1" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold text-center">
+                <div class="p-4 space-y-3">
+                    
+                    <!-- Order Info Box -->
+                    <div class="p-3 bg-light rounded-2 border">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <span class="fs-8 text-muted d-block">Nomor Order</span>
+                                <span class="font-monospace fw-bold text-danger" x-text="selectedOrder?.order_number"></span>
+                            </div>
+                            <div class="col-6">
+                                <span class="fs-8 text-muted d-block">Tujuan Cabang</span>
+                                <span class="fw-semibold text-slate-800" x-text="selectedOrder?.requesting_organization?.name"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Total Berat Kotor (Kg)</label>
-                        <input type="number" step="0.1" name="total_weight_kg" value="5.0" min="0.1" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold text-center">
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Jumlah Koli (Box) <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" 
+                                   name="koli_count" 
+                                   value="1" 
+                                   min="1" 
+                                   required 
+                                   class="form-control form-control-sm text-center fw-bold font-monospace">
+                            <small class="text-muted fs-8">Karton / koli fisik.</small>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Berat Kotor (Kg) <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" 
+                                   step="0.1" 
+                                   name="total_weight_kg" 
+                                   value="5.0" 
+                                   min="0.1" 
+                                   required 
+                                   class="form-control form-control-sm text-center fw-bold font-monospace">
+                            <small class="text-muted fs-8">Termasuk kardus & lakban.</small>
+                        </div>
                     </div>
+
+                    <div>
+                        <label class="form-label fs-7 fw-bold text-slate-800">
+                            Dimensi Paket (P x L x T cm) <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" 
+                               name="dimensions_cm" 
+                               value="40 x 30 x 25 cm" 
+                               required 
+                               class="form-control form-control-sm font-monospace">
+                    </div>
+
                 </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Dimensi Paket (P x L x T cm)</label>
-                    <input type="text" name="dimensions_cm" value="40 x 30 x 25 cm" required class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs">
-                </div>
-
-                <div class="pt-2 flex justify-end space-x-3">
-                    <button type="button" @click="packModal = false" class="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold">Batal</button>
-                    <button type="submit" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-md">
-                        Selesaikan Packing (Ready to Ship)
+                <!-- Modal Footer -->
+                <div class="px-4 py-3 bg-light border-top d-flex align-items-center justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="packModal = false">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-check2-circle"></i>
+                        <span>Selesaikan Packing (Ready to Ship)</span>
                     </button>
                 </div>
             </form>
         </div>
     </div>
+
 </div>
 @endsection

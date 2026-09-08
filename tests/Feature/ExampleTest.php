@@ -15,7 +15,7 @@ class ExampleTest extends TestCase
     {
         $response = $this->get('/login');
         $response->assertStatus(200);
-        $response->assertSee('Sign in to start your session');
+        $response->assertSee('Login');
     }
 
     public function test_register_page_returns_successful_response(): void
@@ -109,5 +109,28 @@ class ExampleTest extends TestCase
 
         $response->assertRedirect(route('dashboard'));
         $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_switching_stocks_page_returns_successful_response(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/inventory/switching-stocks');
+
+        $response->assertStatus(200);
+    }
+
+    public function test_settlements_page_returns_successful_response(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get('/finance/settlements');
+
+        $response->assertStatus(200);
+        $response->assertSee('info-box');
+        $response->assertSee('Perlu Settlement');
+        $response->assertSee('Menunggu Approval');
+        $response->assertSee('Telah Diposting');
+        $response->assertSee('Total Nilai Settlement');
     }
 }

@@ -33,12 +33,15 @@ Route::middleware('auth')->group(function () {
     Route::prefix('procurement')->name('procurement.')->group(function () {
         // PR
         Route::get('/pr', [ProcurementController::class, 'prIndex'])->name('pr.index');
-        Route::get('/pr/create', [ProcurementController::class, 'prCreate'])->name('pr.create');
         Route::post('/pr', [ProcurementController::class, 'prStore'])->name('pr.store');
         Route::get('/pr/{id}', [ProcurementController::class, 'prShow'])->name('pr.show');
         Route::put('/pr/{id}', [ProcurementController::class, 'prUpdate'])->name('pr.update');
         Route::delete('/pr/{id}', [ProcurementController::class, 'prDestroy'])->name('pr.destroy');
         Route::post('/pr/{id}/approve', [ProcurementController::class, 'prApprove'])->name('pr.approve');
+        Route::post('/pr/{id}/reject', [ProcurementController::class, 'prReject'])->name('pr.reject');
+
+        // PR Approvals
+        Route::get('/approvals/pr', [ProcurementController::class, 'prApprovals'])->name('approvals.pr');
 
         // Approved PR Pool & Consolidation
         Route::get('/consolidation', [ProcurementController::class, 'consolidationPool'])->name('consolidation.index');
@@ -46,8 +49,15 @@ Route::middleware('auth')->group(function () {
 
         // PO
         Route::get('/po', [ProcurementController::class, 'poIndex'])->name('po.index');
-        Route::get('/po/{id}', [ProcurementController::class, 'poShow'])->name('po.show');
+        Route::get('/po/{id}/print', [ProcurementController::class, 'poPrint'])->name('po.print');
+        Route::put('/po/{id}', [ProcurementController::class, 'poUpdate'])->name('po.update');
+        Route::delete('/po/{id}', [ProcurementController::class, 'poDestroy'])->name('po.destroy');
         Route::post('/po/{id}/receive-goods', [ProcurementController::class, 'goodsReceiptStore'])->name('po.receive');
+
+        // PO Approvals
+        Route::get('/approvals/po', [ProcurementController::class, 'poApprovals'])->name('approvals.po');
+        Route::post('/po/{id}/approve', [ProcurementController::class, 'poApprove'])->name('po.approve');
+        Route::post('/po/{id}/reject', [ProcurementController::class, 'poReject'])->name('po.reject');
     });
 
     // Workflow 2: Branch Orders & Fulfillment
@@ -84,6 +94,8 @@ Route::middleware('auth')->group(function () {
 
     // Workflow 2: Receiving & Discrepancy
     Route::prefix('receiving')->name('receiving.')->group(function () {
+        Route::get('/po', [ReceivingController::class, 'poIndex'])->name('po.index');
+        Route::post('/po/{id}/receive', [ReceivingController::class, 'poReceiveStore'])->name('po.receive');
         Route::get('/', [ReceivingController::class, 'index'])->name('index');
         Route::get('/confirm/{shipmentId}', [ReceivingController::class, 'createReceiptForm'])->name('confirm.form');
         Route::post('/confirm/{shipmentId}', [ReceivingController::class, 'confirmReceipt'])->name('confirm.store');
@@ -104,8 +116,14 @@ Route::middleware('auth')->group(function () {
         Route::post('/adjustments', [InventoryController::class, 'adjustmentStore'])->name('adjustments.store');
         Route::get('/stock-opname', [StockOpnameController::class, 'index'])->name('stock_opname');
         Route::post('/stock-opname', [StockOpnameController::class, 'store'])->name('stock_opname.store');
+        Route::get('/stock-opname/history', [StockOpnameController::class, 'history'])->name('stock_opname.history');
+        Route::get('/stock-opname/history/{id}', [StockOpnameController::class, 'showHistory'])->name('stock_opname.history.show');
         Route::get('/forecasting', [InventoryController::class, 'forecasting'])->name('forecasting');
         Route::get('/switching-stocks', [SwitchingStockController::class, 'index'])->name('switching.index');
+        Route::get('/switching-stocks/recommendations', [SwitchingStockController::class, 'recommendations'])->name('switching.recommendations');
+        Route::post('/switching-stocks', [SwitchingStockController::class, 'store'])->name('switching.store');
+        Route::put('/switching-stocks/{id}', [SwitchingStockController::class, 'update'])->name('switching.update');
+        Route::delete('/switching-stocks/{id}', [SwitchingStockController::class, 'destroy'])->name('switching.destroy');
         Route::post('/switching-stocks/{id}/approve', [SwitchingStockController::class, 'approve'])->name('switching.approve');
     });
 
@@ -167,6 +185,18 @@ Route::middleware('auth')->group(function () {
         // Budgets CRUD
         Route::get('/budgets', [MasterDataController::class, 'budgetIndex'])->name('budgets');
         Route::post('/budgets', [MasterDataController::class, 'budgetStore'])->name('budgets.store');
+
+        // Accounting Master CRUD (CoA & Cost Center)
+        Route::get('/accounting', [MasterDataController::class, 'accountingIndex'])->name('accounting');
+        Route::post('/coa', [MasterDataController::class, 'coaStore'])->name('coa.store');
+        Route::put('/coa/{id}', [MasterDataController::class, 'coaUpdate'])->name('coa.update');
+        Route::delete('/coa/{id}', [MasterDataController::class, 'coaDestroy'])->name('coa.destroy');
+        Route::patch('/coa/{id}/toggle-status', [MasterDataController::class, 'coaToggleStatus'])->name('coa.toggle_status');
+
+        Route::post('/cost-centers', [MasterDataController::class, 'costCenterStore'])->name('cost_centers.store');
+        Route::put('/cost-centers/{id}', [MasterDataController::class, 'costCenterUpdate'])->name('cost_centers.update');
+        Route::delete('/cost-centers/{id}', [MasterDataController::class, 'costCenterDestroy'])->name('cost_centers.destroy');
+        Route::patch('/cost-centers/{id}/toggle-status', [MasterDataController::class, 'costCenterToggleStatus'])->name('cost_centers.toggle_status');
     });
 
     // Notifications & Audit Trail

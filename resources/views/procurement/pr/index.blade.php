@@ -224,86 +224,14 @@
     }
 }">
 
-    <!-- AdminLTE 4 Small-Boxes (KPI Metric Widgets) -->
-    <div class="row g-3">
-        <!-- Box 1: Total PR -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-danger shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $totalPrCount }}</h3>
-                    <p class="mb-1 fw-semibold">Total Pengajuan PR</p>
-                    <div class="fs-8 text-white-50">Semua Purchase Request</div>
-                </div>
-                <i class="small-box-icon bi bi-file-earmark-text"></i>
-                <a href="{{ route('procurement.pr.index') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Lihat Semua Data <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- Box 2: Menunggu Persetujuan -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-warning shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $submittedPrCount }}</h3>
-                    <p class="mb-1 fw-semibold">Menunggu Approval</p>
-                    <div class="fs-8 text-dark-emphasis">PR Berstatus Submitted</div>
-                </div>
-                <i class="small-box-icon bi bi-hourglass-split"></i>
-                <a href="{{ route('procurement.pr.index', ['status' => 'SUBMITTED']) }}" class="small-box-footer link-dark link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Filter Menunggu Approval <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- Box 3: Disetujui (Approved) -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-success shadow-xs mb-0">
-                <div class="inner">
-                    <h3>{{ $approvedPrCount }}</h3>
-                    <p class="mb-1 fw-semibold">PR Telah Disetujui</p>
-                    <div class="fs-8 text-white-50">Siap Dikonsolidasi ke PO</div>
-                </div>
-                <i class="small-box-icon bi bi-check2-circle"></i>
-                <a href="{{ route('procurement.consolidation.index') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Buka PR Pool Konsolidasi <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- Box 4: Total Estimasi Biaya -->
-        <div class="col-12 col-sm-6 col-xl-3">
-            <div class="small-box text-bg-info shadow-xs mb-0">
-                <div class="inner">
-                    <h3>Rp {{ number_format($totalEstimatedCost / 1000000, 1, ',', '.') }}<span class="fs-6 fw-normal"> jt</span></h3>
-                    <p class="mb-1 fw-semibold">Total Estimasi Biaya</p>
-                    <div class="fs-8 text-white-50">Rp {{ number_format($totalEstimatedCost, 0, ',', '.') }}</div>
-                </div>
-                <i class="small-box-icon bi bi-cash-stack"></i>
-                <a href="{{ route('reports.procurement_coverage') }}" class="small-box-footer link-light link-underline-opacity-0 link-underline-opacity-50-hover">
-                    Coverage Pengadaan <i class="bi bi-arrow-right-circle ms-1"></i>
-                </a>
-            </div>
-        </div>
-    </div>
-
     <!-- Main Card Container -->
     <div class="card card-outline card-danger shadow-xs mb-0">
-        <!-- Card Header with Title and Actions -->
-        <div class="card-header border-bottom d-flex align-items-center justify-content-between py-3 px-4">
-            <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center">
-                <i class="bi bi-file-earmark-text text-danger me-2"></i> Daftar Purchase Request (PR)
-            </h3>
-            <div class="card-tools ms-auto d-flex align-items-center gap-2">
-                <a href="{{ route('procurement.consolidation.index') }}" class="btn btn-sm btn-outline-primary fw-bold shadow-xs d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-layers"></i>
-                    <span>Approved PR Pool</span>
-                </a>
-                <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-plus-circle"></i>
-                    <span>Buat PR Baru</span>
-                </button>
-            </div>
+        <!-- Card Header Actions -->
+        <div class="card-header border-bottom d-flex align-items-center justify-content-end py-2.5 px-3">
+            <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
+                <i class="bi bi-plus-circle"></i>
+                <span>Buat PR Baru</span>
+            </button>
         </div>
 
         <!-- Filter & Search Toolbar -->

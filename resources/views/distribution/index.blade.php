@@ -10,158 +10,287 @@
 @section('content')
 <div class="space-y-4" x-data="{ dispatchModal: false, selectedOrder: null }">
 
-    <!-- Ready to Ship Orders -->
+    <!-- Section 1: Ready to Ship Orders -->
     @if($readyOrders->count() > 0)
-        <div class="bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2 text-jatim-700 font-bold text-sm">
-                    <i class="fa-solid fa-truck-ramp-box"></i>
-                    <span>Order Siap Diberangkatkan (Status: READY_TO_SHIP)</span>
+        <div class="card card-outline card-danger shadow-xs mb-3">
+            <div class="card-header p-3 border-bottom d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-box-seam text-danger fs-5"></i>
+                    <h3 class="card-title fw-bold text-slate-800 fs-6 mb-0">
+                        Order Siap Diberangkatkan (Status: READY_TO_SHIP)
+                        <span class="badge bg-danger rounded-pill ms-1">{{ $readyOrders->count() }} Paket</span>
+                    </h3>
                 </div>
-                <span class="text-xs bg-jatim-700 text-white font-bold px-2.5 py-0.5 rounded-full">{{ $readyOrders->count() }} Paket Siap Kirim</span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                @foreach($readyOrders as $ord)
-                    <div class="bg-white p-4 rounded-xl border border-rose-200 shadow-sm flex flex-col justify-between space-y-3">
-                        <div>
-                            <div class="flex items-center justify-between">
-                                <span class="font-bold text-sm text-slate-900">{{ $ord->order_number }}</span>
-                                <span class="bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded">{{ $ord->packings->last()->koli_count ?? 1 }} Koli ({{ $ord->packings->last()->total_weight_kg ?? 1 }} kg)</span>
-                            </div>
-                            <div class="text-xs font-semibold text-slate-700 mt-1">Tujuan: {{ $ord->requestingOrganization->name }} ({{ $ord->requestingOrganization->city }})</div>
-                            <div class="text-[11px] text-slate-400 mt-0.5">{{ $ord->requestingOrganization->address }}</div>
-                        </div>
-
-                        <button @click="selectedOrder = {{ Js::from($ord) }}; dispatchModal = true" class="w-full bg-jatim-700 hover:bg-jatim-800 text-white font-bold py-2 rounded-lg text-xs shadow-sm transition inline-flex items-center justify-center space-x-2">
-                            <i class="fa-solid fa-truck-fast"></i>
-                            <span>Terbitkan Manifest & Kirim Ekspedisi</span>
-                        </button>
-                    </div>
-                @endforeach
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0 fs-7">
+                    <thead class="table-light text-secondary text-uppercase fs-8 border-bottom">
+                        <tr>
+                            <th class="ps-3 py-2" style="width: 170px;">No. Order & Tanggal</th>
+                            <th class="py-2" style="width: 240px;">Tujuan Cabang / Unit</th>
+                            <th class="py-2">Alamat Pengiriman</th>
+                            <th class="py-2 text-center" style="width: 150px;">Koli & Berat Packing</th>
+                            <th class="pe-3 py-2 text-center" style="width: 90px;">Dispatch</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($readyOrders as $ord)
+                            @php
+                                $lastPacking = $ord->packings->last();
+                                $koli = $lastPacking->koli_count ?? 1;
+                                $weight = $lastPacking->total_weight_kg ?? 1;
+                            @endphp
+                            <tr>
+                                <td class="ps-3">
+                                    <span class="font-monospace fw-bold text-slate-900 d-block">{{ $ord->order_number }}</span>
+                                    <small class="text-muted fs-8">{{ $ord->order_date ? $ord->order_date->format('d M Y') : '-' }}</small>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-slate-800 d-block">{{ $ord->requestingOrganization->name }}</span>
+                                    <small class="text-muted fs-8">{{ $ord->requestingOrganization->city ?? '-' }}</small>
+                                </td>
+                                <td>
+                                    <span class="text-slate-700 fs-8">{{ Str::limit($ord->requestingOrganization->address ?? '-', 60) }}</span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge text-bg-light border font-monospace fs-8">
+                                        {{ $koli }} Koli ({{ $weight }} kg)
+                                    </span>
+                                </td>
+                                <td class="pe-3 text-center">
+                                    <button type="button" 
+                                            @click="selectedOrder = {{ Js::from($ord) }}; dispatchModal = true" 
+                                            class="btn-action-icon text-danger" 
+                                            title="Terbitkan Manifest & Dispatch Ekspedisi">
+                                        <i class="bi bi-truck"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
             </div>
         </div>
     @endif
 
-    <!-- All Shipments Table -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
-            <h3 class="font-bold text-sm text-slate-900">Daftar Manifest Pengiriman (Shipments)</h3>
+    <!-- Section 2: Shipments Table -->
+    <div class="card card-outline card-danger shadow-xs mb-0">
+        <div class="card-header p-3 border-bottom d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-truck text-danger fs-5"></i>
+                <h3 class="card-title fw-bold text-slate-800 fs-6 mb-0">
+                    Daftar Manifest Pengiriman (Shipments)
+                </h3>
+            </div>
         </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle mb-0 fs-7">
+                <thead class="table-light text-secondary text-uppercase fs-8 border-bottom">
                     <tr>
-                        <th class="py-3 px-4">No. Manifest</th>
-                        <th class="py-3 px-4">No. Order</th>
-                        <th class="py-3 px-4">Tujuan Cabang</th>
-                        <th class="py-3 px-4">Ekspedisi / Resi</th>
-                        <th class="py-3 px-4 text-center">Koli & Berat</th>
-                        <th class="py-3 px-4">Status Pengiriman</th>
-                        <th class="py-3 px-4 text-center">Dokumen Cetak</th>
+                        <th class="ps-3 py-2" style="width: 170px;">No. Manifest & Tanggal</th>
+                        <th class="py-2" style="width: 160px;">No. Order</th>
+                        <th class="py-2" style="width: 220px;">Tujuan Cabang</th>
+                        <th class="py-2" style="width: 200px;">Ekspedisi & No. Resi</th>
+                        <th class="py-2 text-center" style="width: 130px;">Koli & Berat</th>
+                        <th class="py-2 text-center" style="width: 130px;">Status Pengiriman</th>
+                        <th class="pe-3 py-2 text-center" style="width: 100px;">Cetak Dokumen</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-100">
+                <tbody>
                     @forelse($shipments as $shp)
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="py-3.5 px-4 font-bold text-slate-900">{{ $shp->manifest_number }}</td>
-                            <td class="py-3.5 px-4 font-semibold text-slate-700">{{ $shp->order->order_number }}</td>
-                            <td class="py-3.5 px-4">
-                                <div class="font-bold text-slate-800">{{ $shp->order->requestingOrganization->name }}</div>
-                                <div class="text-[10px] text-slate-400">{{ $shp->order->requestingOrganization->city }}</div>
+                        <tr>
+                            <td class="ps-3">
+                                <span class="font-monospace fw-bold text-danger d-block">{{ $shp->manifest_number }}</span>
+                                <small class="text-muted fs-8">{{ $shp->created_at ? $shp->created_at->format('d M Y H:i') : '-' }}</small>
                             </td>
-                            <td class="py-3.5 px-4">
-                                <div class="font-bold text-indigo-700">{{ $shp->courier->name ?? 'Kurir Internal' }}</div>
-                                <div class="text-[10px] font-mono text-slate-500 font-semibold">Resi: {{ $shp->tracking_number }}</div>
+                            <td>
+                                <span class="font-monospace fw-semibold text-slate-800">{{ $shp->order->order_number ?? '-' }}</span>
                             </td>
-                            <td class="py-3.5 px-4 text-center font-semibold text-slate-700">
-                                {{ $shp->koli_count }} Koli ({{ $shp->total_weight_kg }} kg)
+                            <td>
+                                <span class="fw-semibold text-slate-800 d-block">{{ $shp->order->requestingOrganization->name ?? '-' }}</span>
+                                <small class="text-muted fs-8">{{ $shp->order->requestingOrganization->city ?? '-' }}</small>
                             </td>
-                            <td class="py-3.5 px-4">
-                                <span class="px-2.5 py-0.5 rounded-full font-bold text-[10px]
-                                    @if($shp->status === 'DELIVERED') bg-emerald-100 text-emerald-800
-                                    @elseif($shp->status === 'IN_TRANSIT') bg-sky-100 text-sky-800
-                                    @else bg-slate-100 text-slate-700 @endif">
-                                    {{ str_replace('_', ' ', $shp->status) }}
+                            <td>
+                                <span class="fw-semibold text-slate-800 d-block">{{ $shp->courier->name ?? 'Kurir Internal' }}</span>
+                                <small class="font-monospace text-muted fs-8">Resi: {{ $shp->tracking_number }}</small>
+                            </td>
+                            <td class="text-center">
+                                <span class="badge text-bg-light border font-monospace fs-8">
+                                    {{ $shp->koli_count }} Koli ({{ $shp->total_weight_kg }} kg)
                                 </span>
                             </td>
-                            <td class="py-3.5 px-4 text-center space-x-2">
-                                <a href="{{ route('distribution.manifest.print', $shp->id) }}" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition">
-                                    <i class="fa-solid fa-print mr-1"></i> Manifest
-                                </a>
-                                <a href="{{ route('distribution.label.print', $shp->id) }}" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition">
-                                    <i class="fa-solid fa-qrcode mr-1"></i> Label QR
-                                </a>
+                            <td class="text-center">
+                                @php
+                                    $badgeClass = match($shp->status) {
+                                        'DELIVERED', 'RECEIVED' => 'text-bg-success',
+                                        'IN_TRANSIT', 'OUT_FOR_DELIVERY' => 'text-bg-info',
+                                        'READY_TO_SHIP', 'DISPATCHED' => 'text-bg-primary',
+                                        'DELIVERY_FAILED', 'RETURNED' => 'text-bg-danger',
+                                        default => 'text-bg-secondary',
+                                    };
+                                    $statusLabel = match($shp->status) {
+                                        'DELIVERED' => 'Terkirim',
+                                        'IN_TRANSIT' => 'Dalam Perjalanan',
+                                        'OUT_FOR_DELIVERY' => 'Kurir Mengantar',
+                                        'DISPATCHED' => 'Diberangkatkan',
+                                        'READY_TO_SHIP' => 'Siap Kirim',
+                                        default => str_replace('_', ' ', $shp->status),
+                                    };
+                                @endphp
+                                <span class="badge {{ $badgeClass }} fs-8">{{ $statusLabel }}</span>
+                            </td>
+                            <td class="pe-3 text-center">
+                                <div class="d-inline-flex align-items-center gap-1">
+                                    <a href="{{ route('distribution.manifest.print', $shp->id) }}" 
+                                       target="_blank" 
+                                       class="btn-action-icon text-secondary" 
+                                       title="Cetak Lembar Manifest Ekspedisi">
+                                        <i class="bi bi-printer"></i>
+                                    </a>
+                                    <a href="{{ route('distribution.label.print', $shp->id) }}" 
+                                       target="_blank" 
+                                       class="btn-action-icon text-primary" 
+                                       title="Cetak Label Koli & QR Code">
+                                        <i class="bi bi-qr-code"></i>
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="py-6 text-center text-slate-400">Belum ada pengiriman tercatat.</td>
+                            <td colspan="7" class="text-center py-5 text-muted">
+                                <i class="bi bi-truck fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                <span class="fw-semibold">Belum ada dokumen pengiriman (manifest) yang dicatat.</span>
+                            </td>
                         </tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <x-pagination-footer :paginator="$shipments" />
+
+        <div class="p-3 border-top">
+            <x-pagination-footer :paginator="$shipments" />
+        </div>
     </div>
 
-    <!-- Dispatch Shipment Modal -->
-    <div x-show="dispatchModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
-        <div @click.away="dispatchModal = false" class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4 pe-5">
-                <h3 class="font-bold text-base text-slate-900">Penerbitan Manifest & Dispatch Ekspedisi</h3>
-                <button type="button" @click="dispatchModal = false" class="btn-close" aria-label="Close"></button>
+    <!-- Dispatch Shipment Modal (Standard Bank Jatim) -->
+    <div x-show="dispatchModal" 
+         x-cloak 
+         class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4" 
+         style="display: none;"
+         @keydown.escape.window="dispatchModal = false">
+        
+        <div class="bg-white rounded-3 shadow-xl max-w-lg w-full flex flex-col overflow-hidden" 
+             @click.outside="dispatchModal = false">
+            
+            <!-- Modal Header -->
+            <div class="bg-danger text-white px-4 py-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-truck fs-5"></i>
+                    <div>
+                        <h5 class="modal-title mb-0 fs-6 fw-bold">Penerbitan Manifest & Dispatch Ekspedisi</h5>
+                        <small class="text-white-50 fs-8">Penetapan kurir rekanan dan nomor tracking kiriman</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" @click="dispatchModal = false" aria-label="Close"></button>
             </div>
 
-            <form action="{{ route('distribution.shipments.store') }}" method="POST" class="space-y-4">
+            <!-- Modal Form Body -->
+            <form action="{{ route('distribution.shipments.store') }}" method="POST">
                 @csrf
                 <input type="hidden" name="order_id" :value="selectedOrder?.id">
 
-                <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                    <div>No. Order: <strong class="text-slate-900" x-text="selectedOrder?.order_number"></strong></div>
-                    <div>Tujuan: <span class="text-slate-700" x-text="selectedOrder?.requesting_organization?.name"></span></div>
+                <div class="p-4 space-y-3">
+                    
+                    <!-- Order Info Box -->
+                    <div class="p-3 bg-light rounded-2 border">
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <span class="fs-8 text-muted d-block">Nomor Order</span>
+                                <span class="font-monospace fw-bold text-danger" x-text="selectedOrder?.order_number"></span>
+                            </div>
+                            <div class="col-6">
+                                <span class="fs-8 text-muted d-block">Tujuan Cabang</span>
+                                <span class="fw-semibold text-slate-800" x-text="selectedOrder?.requesting_organization?.name"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label fs-7 fw-bold text-slate-800">
+                            Jasa Ekspedisi / Kurir <span class="text-danger">*</span>
+                        </label>
+                        <select name="courier_id" required class="form-select form-select-sm">
+                            @foreach($couriers as $cr)
+                                <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Layanan Kurir <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="service_type" 
+                                   value="REGULER" 
+                                   required 
+                                   class="form-control form-control-sm font-monospace">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Nomor Resi / AWB <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   name="tracking_number" 
+                                   value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" 
+                                   required 
+                                   class="form-control form-control-sm font-monospace fw-bold">
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Ongkos Kirim (Rp) <span class="text-danger">*</span>
+                            </label>
+                            <input type="number" 
+                                   name="shipping_cost" 
+                                   value="125000" 
+                                   min="0" 
+                                   required 
+                                   class="form-control form-control-sm font-monospace fw-bold">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fs-7 fw-bold text-slate-800">
+                                Estimasi Tiba (ETA) <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" 
+                                   name="eta_date" 
+                                   value="{{ date('Y-m-d', strtotime('+2 days')) }}" 
+                                   required 
+                                   class="form-control form-control-sm font-monospace">
+                        </div>
+                    </div>
+
                 </div>
 
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Pilih Jasa Ekspedisi / Kurir</label>
-                    <select name="courier_id" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs">
-                        @foreach($couriers as $cr)
-                            <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Layanan Kurir</label>
-                        <input type="text" name="service_type" value="REGULER" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nomor Resi / AWB</label>
-                        <input type="text" name="tracking_number" value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-mono font-bold">
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Biaya Ongkos Kirim (Rp)</label>
-                        <input type="number" name="shipping_cost" value="125000" min="0" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs font-bold">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Estimasi Tanggal Tiba (ETA)</label>
-                        <input type="date" name="eta_date" value="{{ date('Y-m-d', strtotime('+2 days')) }}" required class="w-full bg-white border border-slate-200 rounded-xl p-2 text-xs">
-                    </div>
-                </div>
-
-                <div class="pt-2 flex justify-end space-x-3">
-                    <button type="button" @click="dispatchModal = false" class="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold">Batal</button>
-                    <button type="submit" class="px-5 py-2 bg-jatim-700 hover:bg-jatim-800 text-white rounded-xl text-xs font-bold shadow-md">
-                        Terbitkan Manifest & Dispatch
+                <!-- Modal Footer -->
+                <div class="px-4 py-3 bg-light border-top d-flex align-items-center justify-content-end gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="dispatchModal = false">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-send-check"></i>
+                        <span>Terbitkan Manifest & Dispatch</span>
                     </button>
                 </div>
             </form>
         </div>
     </div>
+
 </div>
 @endsection

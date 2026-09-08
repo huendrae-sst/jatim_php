@@ -8,43 +8,31 @@
 @endsection
 
 @section('content')
-<div class="space-y-3 select-none" x-data="{
-    searchQuery: '',
-    selectedCategory: 'all',
-    stockFilter: 'all',
-    balanceCurrentPage: 1,
-    balancePerPage: 15,
+<div class="space-y-4" x-data="{
     warehouseDropdownOpen: false,
     warehouseSearch: '',
-    rawBalances: {{ Js::from($balances->map(fn($sb) => [
-        'id' => $sb->id,
-        'item_name' => $sb->item->name,
-        'item_sku' => $sb->item->sku,
-        'item_category' => $sb->item->category->name,
-        'available' => $sb->available,
-        'damaged' => $sb->damaged,
-        'reserved' => $sb->reserved,
-    ])) }},
-    get filteredBalances() {
-        const q = this.searchQuery.toLowerCase().trim();
-        return this.rawBalances.filter(b => {
-            const matchesSearch = !q || (b.item_name + ' ' + b.item_sku + ' ' + b.item_category).toLowerCase().includes(q);
-            const matchesFilter = this.stockFilter === 'all' ||
-                (this.stockFilter === 'available' && b.available > 0) ||
-                (this.stockFilter === 'damaged' && b.damaged > 0) ||
-                (this.stockFilter === 'reserved' && b.reserved > 0);
-            return matchesSearch && matchesFilter;
-        });
-    },
-    get balanceTotalPages() {
-        return Math.max(1, Math.ceil(this.filteredBalances.length / this.balancePerPage));
-    },
-    get balanceFirstItem() {
-        if (this.filteredBalances.length === 0) return 0;
-        return (this.balanceCurrentPage - 1) * this.balancePerPage + 1;
-    },
-    get balanceLastItem() {
-        return Math.min(this.filteredBalances.length, this.balanceCurrentPage * this.balancePerPage);
+    viewModal: false,
+    selectedBalance: {
+        id: null,
+        item_id: null,
+        item_name: '',
+        item_sku: '',
+        item_uom: '',
+        category_name: '',
+        warehouse_id: null,
+        warehouse_name: '',
+        warehouse_code: '',
+        organization_name: '',
+        on_hand: 0,
+        reserved: 0,
+        damaged: 0,
+        hold: 0,
+        allocated: 0,
+        in_transit: 0,
+        available: 0,
+        unit_price: 0,
+        total_valuation: 0,
+        stock_card_url: '#'
     },
     warehousesList: {{ Js::from($warehouses->map(fn($w) => [
         'id' => $w->id,
@@ -64,18 +52,12 @@
             w.org_name.toLowerCase().includes(q) ||
             w.city.toLowerCase().includes(q)
         );
+    },
+    openViewModal(data) {
+        this.selectedBalance = data;
+        this.viewModal = true;
     }
 }">
-
-    <!-- Action Bar -->
-    <div class="d-flex flex-column flex-sm-row justify-content-end align-items-stretch align-items-sm-center gap-2">
-        <a href="{{ route('inventory.stock_opname', ['warehouse_id' => $selectedWarehouseId !== 'all' ? $selectedWarehouseId : 1]) }}" class="btn btn-sm btn-light border fw-bold text-slate-700 shadow-xs d-inline-flex align-items-center justify-content-center">
-            <i class="bi bi-boxes me-1"></i> Stock Opname
-        </a>
-        <a href="{{ route('inventory.forecasting') }}" class="btn btn-sm btn-warning text-white fw-bold shadow-xs d-inline-flex align-items-center justify-content-center">
-            <i class="bi bi-graph-up me-1"></i> Forecasting & ROP
-        </a>
-    </div>
 
     <!-- Warehouse Selector Header Bar (Compact & Searchable - Solves Infinite Scroll with 12+ Warehouses) -->
     <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
@@ -162,227 +144,345 @@
         </div>
     </div>
 
-    <!-- KPI Summary Metric Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- KPI Summary Metric Info-Boxes -->
+    <div class="row g-3">
         <!-- 1. Total SKU -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex items-center justify-between text-slate-500">
-                <span class="text-xs font-semibold text-slate-500">SKU Terdaftar</span>
-                <i class="fa-solid fa-boxes-stacked text-xs text-slate-400"></i>
-            </div>
-            <div>
-                <div class="text-xl font-bold text-slate-900">{{ number_format($totalSkuCount) }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Jenis item persediaan</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-primary"><i class="bi bi-boxes"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">SKU Terdaftar</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($totalSkuCount) }}</span>
+                    <span class="fs-9 text-secondary">Jenis item persediaan</span>
+                </div>
             </div>
         </div>
 
         <!-- 2. Fisik On Hand -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex items-center justify-between text-slate-500">
-                <span class="text-xs font-semibold text-slate-500">Saldo On Hand</span>
-                <i class="fa-solid fa-cubes text-xs text-slate-400"></i>
-            </div>
-            <div>
-                <div class="text-xl font-bold text-slate-900">{{ number_format($totalOnHand) }} <span class="text-xs text-slate-400 font-normal">Unit</span></div>
-                <div class="text-[11px] text-amber-600 mt-0.5 font-medium">Reserved: {{ number_format($totalReserved) }} • Rusak: {{ number_format($totalDamaged) }}</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-warning"><i class="bi bi-box-seam"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Saldo On Hand</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">{{ number_format($totalOnHand) }} <span class="fs-8 text-secondary fw-normal">Unit</span></span>
+                    <span class="fs-9 text-warning-emphasis">Reserved: {{ number_format($totalReserved) }} • Rusak: {{ number_format($totalDamaged) }}</span>
+                </div>
             </div>
         </div>
 
         <!-- 3. Stok Bebas (Available) -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex items-center justify-between text-slate-500">
-                <span class="text-xs font-semibold text-slate-500">Stok Bebas (Available)</span>
-                <i class="fa-solid fa-circle-check text-xs text-emerald-500"></i>
-            </div>
-            <div>
-                <div class="text-xl font-bold text-emerald-700">{{ number_format($totalAvailable) }} <span class="text-xs text-emerald-600 font-normal">Unit</span></div>
-                <div class="text-[11px] text-emerald-600 mt-0.5 font-medium">Siap dialokasikan ke cabang</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-success"><i class="bi bi-check2-circle"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Stok Bebas (Available)</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-success">{{ number_format($totalAvailable) }} <span class="fs-8 text-success-emphasis fw-normal">Unit</span></span>
+                    <span class="fs-9 text-success-emphasis">Siap dialokasikan ke cabang</span>
+                </div>
             </div>
         </div>
 
         <!-- 4. Total Valuasi -->
-        <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs flex flex-col justify-between space-y-2">
-            <div class="flex items-center justify-between text-slate-500">
-                <span class="text-xs font-semibold text-slate-500">Valuasi Persediaan</span>
-                <i class="fa-solid fa-vault text-xs text-slate-400"></i>
-            </div>
-            <div>
-                <div class="text-xl font-bold text-slate-900">Rp {{ number_format($totalValuation, 0, ',', '.') }}</div>
-                <div class="text-[11px] text-slate-400 mt-0.5">Nilai perolehan rata-rata</div>
+        <div class="col-12 col-sm-6 col-xl-3">
+            <div class="info-box shadow-xs mb-0 h-100 bg-body">
+                <span class="info-box-icon text-bg-danger"><i class="bi bi-cash-stack"></i></span>
+                <div class="info-box-content">
+                    <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Valuasi Persediaan</span>
+                    <span class="info-box-number fs-4 fw-bold font-monospace text-body-emphasis">Rp {{ number_format($totalValuation, 0, ',', '.') }}</span>
+                    <span class="fs-9 text-secondary">Nilai perolehan rata-rata</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Stock Formula Legend Bar -->
-    <div class="bg-white px-4 py-2.5 rounded-xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
-        <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-calculator text-slate-400 text-xs"></i>
-            <span class="font-bold text-slate-800 text-[11px]">Formula Persediaan JIMS:</span>
-        </div>
-        <div class="flex items-center space-x-2 font-mono text-[11px] flex-wrap">
-            <span class="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded font-bold border border-emerald-200">Available</span>
-            <span class="text-slate-400">=</span>
-            <span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">On Hand</span>
-            <span class="text-slate-400">-</span>
-            <span class="bg-amber-50 text-amber-800 px-2 py-0.5 rounded border border-amber-200">Reserved</span>
-            <span class="text-slate-400">-</span>
-            <span class="bg-rose-50 text-rose-800 px-2 py-0.5 rounded border border-rose-200">Damaged</span>
-            <span class="text-slate-400">-</span>
-            <span class="bg-slate-100 text-slate-800 px-2 py-0.5 rounded border border-slate-200">Hold</span>
-        </div>
-    </div>
+    <!-- Table Container Card (seperti master/items) -->
+    <div class="card shadow-sm border-0 rounded-3">
+        <!-- Filter & Search Toolbar (seperti master/items) -->
+        <div class="card-body p-3 bg-body-tertiary border-bottom">
+            <form action="{{ route('inventory.balances') }}" method="GET">
+                <input type="hidden" name="warehouse_id" value="{{ $selectedWarehouseId }}">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
+                <div class="row g-2 align-items-center">
+                    <!-- Kategori Filter -->
+                    <div class="col-12 col-sm-6 col-md-3">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-tag"></i></span>
+                            <select name="category_id" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
+                                <option value="ALL">Semua Kategori</option>
+                                @foreach($categories as $cat)
+                                    <option value="{{ $cat->id }}" {{ (string)$categoryId === (string)$cat->id ? 'selected' : '' }}>
+                                        {{ $cat->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
 
-    <!-- Table Container Card (Clean SaaS Styling) -->
-    <div class="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        
-        <!-- Table Search & Filter Bar -->
-        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div class="relative flex-1 max-w-sm">
-                <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                <input type="text" x-model="searchQuery" @input="balanceCurrentPage = 1" class="w-full h-9 box-border bg-slate-50 border border-slate-200 rounded-lg pl-8 pr-3 text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-jatim-700">
-            </div>
+                    <!-- Status Stok Filter -->
+                    <div class="col-12 col-sm-6 col-md-2">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-filter"></i></span>
+                            <select name="stock_filter" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
+                                <option value="">Semua Saldo</option>
+                                <option value="available" {{ $stockFilter === 'available' ? 'selected' : '' }}>Hanya Tersedia (>0)</option>
+                                <option value="damaged" {{ $stockFilter === 'damaged' ? 'selected' : '' }}>Ada Rusak / Damaged</option>
+                                <option value="reserved" {{ $stockFilter === 'reserved' ? 'selected' : '' }}>Ada Reserved Order</option>
+                            </select>
+                        </div>
+                    </div>
 
-            <div class="flex items-center space-x-2">
-                <span class="text-xs text-slate-400 font-semibold">Filter Stok:</span>
-                <select x-model="stockFilter" @change="balanceCurrentPage = 1" class="h-9 box-border bg-slate-50 border border-slate-200 rounded-lg px-3 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-jatim-700 cursor-pointer">
-                    <option value="all">Semua Saldo</option>
-                    <option value="available">Hanya Stok Tersedia (>0)</option>
-                    <option value="damaged">Ada Rusak / Damaged</option>
-                    <option value="reserved">Ada Reserved Order</option>
-                </select>
-            </div>
+                    <!-- Reset Button -->
+                    @if($search || ($categoryId && $categoryId !== 'ALL') || $stockFilter)
+                        <div class="col-auto">
+                            <a href="{{ route('inventory.balances', ['warehouse_id' => $selectedWarehouseId]) }}" class="btn btn-sm btn-outline-danger fs-8" title="Reset Filter">
+                                <i class="bi bi-x-circle me-1"></i> Reset
+                            </a>
+                        </div>
+                    @endif
+
+                    <!-- Search Bar -->
+                    <div class="col-12 col-md ms-md-auto">
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-search"></i></span>
+                            <input type="text" 
+                                   name="search" 
+                                   value="{{ $search }}" 
+                                   class="form-control form-control-sm border-start-0 border-end-0 fs-8" 
+                                   placeholder="Cari SKU atau nama item...">
+                            <button type="submit" class="btn btn-sm btn-danger fw-bold fs-8 shadow-xs">Cari</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
         </div>
 
         <!-- Table View -->
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs">
-                <thead class="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                    <tr>
-                        <th class="py-3 px-4">Item & SKU</th>
-                        <th class="py-3 px-4">Kategori</th>
-                        @if($selectedWarehouseId === 'all')
-                            <th class="py-3 px-4">Lokasi Gudang</th>
-                        @endif
-                        <th class="py-3 px-4 text-center">On Hand</th>
-                        <th class="py-3 px-4 text-center">Reserved</th>
-                        <th class="py-3 px-4 text-center">Damaged</th>
-                        <th class="py-3 px-4 text-center">Available</th>
-                        <th class="py-3 px-4 text-right">Harga Satuan</th>
-                        <th class="py-3 px-4 text-right">Total Valuasi</th>
-                        <th class="py-3 px-4 text-center">Aksi</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($balances as $sb)
-                        <tr class="hover:bg-slate-50/80 transition"
-                            x-show="(
-                                (!searchQuery.trim() || '{{ strtolower($sb->item->name) }} {{ strtolower($sb->item->sku) }} {{ strtolower($sb->item->category->name) }}'.includes(searchQuery.toLowerCase())) &&
-                                (stockFilter === 'all' || 
-                                 (stockFilter === 'available' && {{ $sb->available }} > 0) || 
-                                 (stockFilter === 'damaged' && {{ $sb->damaged }} > 0) || 
-                                 (stockFilter === 'reserved' && {{ $sb->reserved }} > 0))
-                            ) && (
-                                filteredBalances.findIndex(b => b.id === {{ $sb->id }}) >= (balanceCurrentPage - 1) * balancePerPage &&
-                                filteredBalances.findIndex(b => b.id === {{ $sb->id }}) < balanceCurrentPage * balancePerPage
-                            )">
-                            <td class="py-3.5 px-4">
-                                <div class="font-bold text-slate-900">{{ $sb->item->name }}</div>
-                                <div class="text-[10px] text-slate-400 font-mono">{{ $sb->item->sku }} • {{ $sb->item->uom }}</div>
-                            </td>
-                            <td class="py-3.5 px-4 text-slate-600 font-medium">
-                                <span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-semibold">
-                                    {{ $sb->item->category->name }}
-                                </span>
-                            </td>
-                            @if($selectedWarehouseId === 'all')
-                                <td class="py-3.5 px-4">
-                                    <div class="font-semibold text-slate-800">{{ $sb->warehouse->name }}</div>
-                                    <div class="text-[10px] text-slate-400 font-mono">{{ $sb->warehouse->organization->code }}</div>
-                                </td>
-                            @endif
-                            <td class="py-3.5 px-4 text-center font-bold text-slate-800 text-sm">
-                                {{ number_format($sb->on_hand) }}
-                            </td>
-                            <td class="py-3.5 px-4 text-center font-bold text-amber-600">
-                                {{ number_format($sb->reserved) }}
-                            </td>
-                            <td class="py-3.5 px-4 text-center font-bold text-rose-600">
-                                {{ number_format($sb->damaged) }}
-                            </td>
-                            <td class="py-3.5 px-4 text-center">
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-black {{ $sb->available > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-slate-100 text-slate-500' }}">
-                                    {{ number_format($sb->available) }} {{ $sb->item->uom }}
-                                </span>
-                            </td>
-                            <td class="py-3.5 px-4 text-right text-slate-600 font-mono">
-                                Rp {{ number_format($sb->item->estimated_unit_price, 0, ',', '.') }}
-                            </td>
-                            <td class="py-3.5 px-4 text-right font-bold text-slate-900 font-mono">
-                                Rp {{ number_format($sb->on_hand * $sb->item->estimated_unit_price, 0, ',', '.') }}
-                            </td>
-                            <td class="py-3.5 px-4 text-center">
-                                <a href="{{ route('inventory.stock_card', ['itemId' => $sb->item_id, 'warehouse_id' => $sb->warehouse_id]) }}" class="inline-flex items-center space-x-1 bg-slate-100 hover:bg-jatim-700 hover:text-white text-slate-700 px-2.5 py-1 rounded-lg text-xs font-bold transition">
-                                    <i class="fa-solid fa-list-check text-[10px]"></i>
-                                    <span>Kartu Stok</span>
-                                </a>
-                            </td>
-                        </tr>
-                    @empty
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0 fs-7">
+                    <thead class="bg-body-tertiary text-secondary border-bottom">
                         <tr>
-                            <td colspan="10" class="py-8 text-center text-slate-400">
-                                <div class="flex flex-col items-center justify-center space-y-2">
-                                    <i class="fa-solid fa-box-open text-2xl text-slate-300"></i>
-                                    <span>Belum ada saldo barang pada gudang yang dipilih.</span>
-                                </div>
-                            </td>
+                            <th class="ps-4 py-3">Item & SKU</th>
+                            <th class="py-3">Kategori</th>
+                            @if($selectedWarehouseId === 'all')
+                                <th class="py-3">Lokasi Gudang</th>
+                            @endif
+                            <th class="py-3 text-center">On Hand</th>
+                            <th class="py-3 text-center">Reserved</th>
+                            <th class="py-3 text-center">Damaged</th>
+                            <th class="py-3 text-center">Available</th>
+                            <th class="py-3 text-end">Harga Satuan</th>
+                            <th class="py-3 text-end">Total Valuasi</th>
+                            <th class="py-3 pe-4 text-center" style="width: 90px;">Aksi</th>
                         </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @forelse($balances as $sb)
+                            <tr>
+                                <td class="ps-4 py-3">
+                                    <div class="fw-bold text-body">{{ $sb->item->name }}</div>
+                                    <div class="text-secondary fs-8 font-monospace">{{ $sb->item->sku }} • {{ $sb->item->uom }}</div>
+                                </td>
+                                <td class="py-3">
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis fs-9">
+                                        {{ $sb->item->category->name ?? '-' }}
+                                    </span>
+                                </td>
+                                @if($selectedWarehouseId === 'all')
+                                    <td class="py-3">
+                                        <div class="fw-semibold text-body fs-8">{{ $sb->warehouse->name ?? '-' }}</div>
+                                        <div class="text-secondary fs-9 font-monospace">{{ $sb->warehouse->organization->code ?? '-' }}</div>
+                                    </td>
+                                @endif
+                                <td class="py-3 text-center font-monospace fw-bold text-body">
+                                    {{ number_format($sb->on_hand) }}
+                                </td>
+                                <td class="py-3 text-center font-monospace fw-bold text-warning-emphasis">
+                                    {{ number_format($sb->reserved) }}
+                                </td>
+                                <td class="py-3 text-center font-monospace fw-bold text-danger">
+                                    {{ number_format($sb->damaged) }}
+                                </td>
+                                <td class="py-3 text-center">
+                                    <span class="badge {{ $sb->available > 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary' }} font-monospace fs-8 px-2 py-1">
+                                        {{ number_format($sb->available) }} {{ $sb->item->uom }}
+                                    </span>
+                                </td>
+                                <td class="py-3 text-end font-monospace text-secondary fs-8">
+                                    Rp {{ number_format($sb->item->estimated_unit_price, 0, ',', '.') }}
+                                </td>
+                                <td class="py-3 text-end font-monospace fw-bold text-body fs-8">
+                                    Rp {{ number_format($sb->on_hand * $sb->item->estimated_unit_price, 0, ',', '.') }}
+                                </td>
+                                <td class="py-3 pe-4 text-center">
+                                    <div class="d-inline-flex align-items-center gap-1">
+                                        <!-- View Button (Bentuk Icon) -->
+                                        <button type="button" 
+                                                @click="openViewModal({{ Js::from([
+                                                    'id' => $sb->id,
+                                                    'item_id' => $sb->item_id,
+                                                    'item_name' => $sb->item->name,
+                                                    'item_sku' => $sb->item->sku,
+                                                    'item_uom' => $sb->item->uom,
+                                                    'category_name' => $sb->item->category?->name ?? '-',
+                                                    'warehouse_id' => $sb->warehouse_id,
+                                                    'warehouse_name' => $sb->warehouse?->name ?? '-',
+                                                    'warehouse_code' => $sb->warehouse?->code ?? '-',
+                                                    'organization_name' => $sb->warehouse?->organization?->name ?? '-',
+                                                    'on_hand' => $sb->on_hand,
+                                                    'reserved' => $sb->reserved,
+                                                    'damaged' => $sb->damaged,
+                                                    'hold' => $sb->hold,
+                                                    'allocated' => $sb->allocated,
+                                                    'in_transit' => $sb->in_transit,
+                                                    'available' => $sb->available,
+                                                    'unit_price' => $sb->item->estimated_unit_price,
+                                                    'total_valuation' => $sb->on_hand * $sb->item->estimated_unit_price,
+                                                    'stock_card_url' => route('inventory.stock_card', ['itemId' => $sb->item_id, 'warehouse_id' => $sb->warehouse_id]),
+                                                ]) }})" 
+                                                class="btn-action-icon text-secondary" 
+                                                title="Lihat Detail Saldo">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+
+                                        <!-- Kartu Stok Button (Bentuk Icon) -->
+                                        <a href="{{ route('inventory.stock_card', ['itemId' => $sb->item_id, 'warehouse_id' => $sb->warehouse_id]) }}" 
+                                           class="btn-action-icon text-primary" 
+                                           title="Lihat Kartu Stok">
+                                            <i class="bi bi-card-list"></i>
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="{{ $selectedWarehouseId === 'all' ? 10 : 9 }}" class="text-center py-5">
+                                    <div class="d-flex flex-column align-items-center justify-content-center">
+                                        <i class="bi bi-inbox text-secondary fs-1 mb-2"></i>
+                                        <span class="text-secondary fw-medium">Belum ada saldo barang pada kriteria yang dipilih</span>
+                                        @if($search || ($categoryId && $categoryId !== 'ALL') || $stockFilter)
+                                            <a href="{{ route('inventory.balances', ['warehouse_id' => $selectedWarehouseId]) }}" class="btn btn-sm btn-outline-danger mt-3">
+                                                <i class="bi bi-x-circle me-1"></i> Reset Pencarian
+                                            </a>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <!-- Pagination Footer -->
-        <div class="px-5 py-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500 bg-white">
-            <div>
-                Menampilkan
-                <span class="font-bold text-slate-800" x-text="balanceFirstItem"></span>
-                sampai
-                <span class="font-bold text-slate-800" x-text="balanceLastItem"></span>
-                dari
-                <span class="font-bold text-slate-800" x-text="filteredBalances.length"></span>
-                data
+        <x-pagination-footer :paginator="$balances" :perPage="$perPage" />
+    </div>
+
+    <!-- ==================== VIEW DETAIL MODAL ==================== -->
+    <div x-show="viewModal" 
+         class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4"
+         x-cloak 
+         style="display: none; z-index: 1050;">
+        <div @click.away="viewModal = false" 
+             class="card shadow-2xl border border-secondary-subtle max-w-2xl w-full overflow-hidden" 
+             style="background-color: var(--bs-body-bg); color: var(--bs-body-color);">
+            <div class="card-header bg-danger text-white py-3 px-4 d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-boxes fs-5"></i>
+                    <h5 class="modal-title fs-6 fw-bold mb-0">Rincian Saldo Barang</h5>
+                </div>
+                <button type="button" @click="viewModal = false" class="btn-close btn-close-white" aria-label="Close"></button>
             </div>
-
-            <div class="flex items-center space-x-3">
-                <div class="flex items-center space-x-1.5">
-                    <span class="text-slate-400 font-medium">Per page:</span>
-                    <select x-model.number="balancePerPage" @change="balanceCurrentPage = 1" class="h-8 bg-slate-50 border border-slate-200 rounded-lg px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-1 focus:ring-jatim-700 cursor-pointer">
-                        <option value="10">10</option>
-                        <option value="15">15</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                    </select>
+            <div class="modal-body p-4 fs-8">
+                <!-- Info Header Barang -->
+                <div class="p-3 bg-body-tertiary rounded-3 border mb-3">
+                    <div class="d-flex align-items-start justify-content-between">
+                        <div>
+                            <h6 class="fw-bold mb-1 text-body" x-text="selectedBalance.item_name"></h6>
+                            <div class="text-secondary font-monospace fs-9">
+                                <span x-text="selectedBalance.item_sku"></span> • 
+                                <span x-text="selectedBalance.category_name"></span> • 
+                                Satuan: <span x-text="selectedBalance.item_uom"></span>
+                            </div>
+                        </div>
+                        <span class="badge bg-danger-subtle text-danger font-monospace" x-text="'Saldo ID: ' + selectedBalance.id"></span>
+                    </div>
                 </div>
 
-                <div class="flex items-center space-x-1" x-show="balanceTotalPages > 1">
-                    <button type="button" @click="balanceCurrentPage = 1" :disabled="balanceCurrentPage === 1" class="px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer" title="Halaman Pertama">
-                        <i class="fa-solid fa-angles-left text-[10px]"></i>
-                    </button>
-                    <button type="button" @click="balanceCurrentPage = Math.max(1, balanceCurrentPage - 1)" :disabled="balanceCurrentPage === 1" class="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer" title="Sebelumnya">
-                        <i class="fa-solid fa-chevron-left text-[10px]"></i>
-                    </button>
-                    
-                    <template x-for="p in balanceTotalPages" :key="p">
-                        <button type="button" @click="balanceCurrentPage = p" class="px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer" :class="balanceCurrentPage === p ? 'bg-jatim-700 text-white shadow-xs border border-jatim-700' : 'border border-slate-200 text-slate-700 hover:bg-slate-50'" x-text="p"></button>
-                    </template>
+                <div class="row g-3">
+                    <!-- Lokasi Gudang -->
+                    <div class="col-12">
+                        <div class="card bg-body-tertiary border p-3">
+                            <div class="fw-bold text-secondary text-uppercase fs-9 mb-2">Lokasi Penyimpanan Gudang</div>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <span class="text-secondary">Gudang:</span>
+                                    <div class="fw-bold text-body" x-text="selectedBalance.warehouse_name + ' (' + selectedBalance.warehouse_code + ')'"></div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <span class="text-secondary">Unit Kerja:</span>
+                                    <div class="fw-bold text-body" x-text="selectedBalance.organization_name"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button type="button" @click="balanceCurrentPage = Math.min(balanceTotalPages, balanceCurrentPage + 1)" :disabled="balanceCurrentPage === balanceTotalPages" class="px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer" title="Selanjutnya">
-                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
-                    </button>
-                    <button type="button" @click="balanceCurrentPage = balanceTotalPages" :disabled="balanceCurrentPage === balanceTotalPages" class="px-2 py-1 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition cursor-pointer" title="Halaman Terakhir">
-                        <i class="fa-solid fa-angles-right text-[10px]"></i>
-                    </button>
+                    <!-- Detail Saldo Fisik & Status -->
+                    <div class="col-12">
+                        <div class="card bg-body border p-3">
+                            <div class="fw-bold text-secondary text-uppercase fs-9 mb-2">Rincian Fisik & Komitmen Saldo</div>
+                            <div class="row g-2 text-center">
+                                <div class="col-6 col-sm-3">
+                                    <div class="p-2 border rounded bg-body-tertiary">
+                                        <div class="text-secondary fs-9">On Hand (Fisik)</div>
+                                        <div class="fs-6 fw-bold font-monospace text-body" x-text="selectedBalance.on_hand"></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="p-2 border rounded bg-body-tertiary">
+                                        <div class="text-secondary fs-9">Available (Bebas)</div>
+                                        <div class="fs-6 fw-bold font-monospace text-success" x-text="selectedBalance.available"></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="p-2 border rounded bg-body-tertiary">
+                                        <div class="text-secondary fs-9">Reserved (Order)</div>
+                                        <div class="fs-6 fw-bold font-monospace text-warning-emphasis" x-text="selectedBalance.reserved"></div>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="p-2 border rounded bg-body-tertiary">
+                                        <div class="text-secondary fs-9">Damaged (Rusak)</div>
+                                        <div class="fs-6 fw-bold font-monospace text-danger" x-text="selectedBalance.damaged"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Valuasi -->
+                    <div class="col-12">
+                        <div class="card bg-body-tertiary border p-3">
+                            <div class="fw-bold text-secondary text-uppercase fs-9 mb-2">Estimasi Nilai Valuasi</div>
+                            <div class="row g-2">
+                                <div class="col-sm-6">
+                                    <span class="text-secondary">Estimasi Harga Satuan:</span>
+                                    <div class="fw-bold font-monospace text-body" x-text="'Rp ' + Number(selectedBalance.unit_price || 0).toLocaleString('id-ID')"></div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <span class="text-secondary">Total Nilai Saldo:</span>
+                                    <div class="fw-bold font-monospace text-primary" x-text="'Rp ' + Number(selectedBalance.total_valuation || 0).toLocaleString('id-ID')"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+            <div class="card-footer bg-body-tertiary py-2.5 px-4 d-flex justify-content-between align-items-center">
+                <a :href="selectedBalance.stock_card_url" class="btn btn-sm btn-outline-primary fw-bold">
+                    <i class="bi bi-card-list me-1"></i> Buka Kartu Stok
+                </a>
+                <button type="button" @click="viewModal = false" class="btn btn-sm btn-secondary">Tutup</button>
             </div>
         </div>
     </div>

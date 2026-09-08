@@ -82,6 +82,11 @@ class JimsEndToEndWorkflowTest extends TestCase
         $this->assertEquals($expectedTotal, (float) $po->total_amount);
         $this->assertEquals('FULLY_ORDERED', $prA->fresh()->status);
         $this->assertEquals('FULLY_ORDERED', $prB->fresh()->status);
+        $this->assertEquals('WAITING_APPROVAL', $po->status);
+
+        // Approve Purchase Order
+        $procService->approvePurchaseOrder($po, $procApprover);
+        $this->assertEquals('ISSUED', $po->fresh()->status);
 
         // 3. Receive Goods from Vendor (GRN)
         $poItems = $po->items;

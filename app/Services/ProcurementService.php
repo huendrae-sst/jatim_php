@@ -124,6 +124,38 @@ class ProcurementService
         });
     }
 
+    public function rejectPurchaseRequest(PurchaseRequest $pr, string $reason, User $user): PurchaseRequest
+    {
+        if ($pr->created_by_user_id === $user->id) {
+            throw new Exception('Segregation of Duties: Pembuat PR tidak boleh menolak PR sendiri.');
+        }
+
+        if (! in_array($pr->status, ['DRAFT', 'SUBMITTED', 'WAITING_APPROVAL'])) {
+            throw new Exception("Purchase Request {$pr->pr_number} tidak dalam status menunggu persetujuan.");
+        }
+
+        return DB::transaction(function () use ($pr, $reason, $user) {
+            $previousStatus = $pr->status;
+            $pr->status = 'REJECTED';
+            $pr->rejection_reason = $reason;
+            $pr->approved_by_user_id = $user->id;
+            $pr->approved_at = now();
+            $pr->save();
+
+            AuditTrailService::log('REJECT_PR', $pr, ['status' => $previousStatus], ['status' => 'REJECTED', 'reason' => $reason], $user);
+
+            NotificationService::sendInfo(
+                'Purchase Request Ditolak',
+                "PR {$pr->pr_number} telah ditolak dengan alasan: {$reason}",
+                $pr->created_by_user_id,
+                'PROCUREMENT_OFFICER',
+                "/procurement/pr/{$pr->id}"
+            );
+
+            return $pr;
+        });
+    }
+
     public function consolidatePRsToPO(
         array $prItemSelections, // [ ['pr_item_id' => 1, 'qty' => 100, 'unit_price' => 250000], ... ]
         int $vendorId,
@@ -152,7 +184,7 @@ class ProcurementService
                 'subtotal' => $subtotal,
                 'tax_amount' => $taxAmount,
                 'total_amount' => $totalAmount,
-                'status' => 'ISSUED',
+                'status' => 'WAITING_APPROVAL',
                 'notes' => $notes,
             ]);
 
@@ -197,11 +229,103 @@ class ProcurementService
 
             AuditTrailService::log('CONSOLIDATE_PR_TO_PO', $po, null, ['po_number' => $po->po_number, 'total' => $totalAmount], $user);
 
-            NotificationService::sendInfo(
-                'Purchase Order Baru Terbit',
-                "PO {$po->po_number} berhasil diterbitkan melalui konsolidasi PR.",
+            NotificationService::sendActionRequired(
+                "Persetujuan Purchase Order {$po->po_number}",
+                'Purchase Order baru dari konsolidasi PR sebesar Rp '.number_format($po->total_amount, 0, ',', '.').' memerlukan persetujuan penerbitan.',
+                'PROCUREMENT_APPROVER',
                 null,
+                'PO',
+                $po->id,
+                '/procurement/approvals/po'
+            );
+
+            return $po;
+        });
+    }
+
+    public function approvePurchaseOrder(PurchaseOrder $po, User $approver): PurchaseOrder
+    {
+        if ($po->created_by_user_id === $approver->id) {
+            throw new Exception('Segregation of Duties: Pembuat PO tidak boleh menyetujui PO sendiri.');
+        }
+
+        if (! in_array($po->status, ['DRAFT', 'WAITING_APPROVAL'])) {
+            throw new Exception("Purchase Order {$po->po_number} tidak dalam status menunggu persetujuan (Status: {$po->status}).");
+        }
+
+        return DB::transaction(function () use ($po, $approver) {
+            $po->status = 'ISSUED';
+            $po->approved_by_user_id = $approver->id;
+            $po->approved_at = now();
+            $po->save();
+
+            AuditTrailService::log('APPROVE_PO', $po, null, ['status' => 'ISSUED', 'approved_by' => $approver->name], $approver);
+
+            NotificationService::sendInfo(
+                'Purchase Order Disetujui & Diterbitkan',
+                "PO {$po->po_number} telah disetujui dan diterbitkan untuk proses pengiriman serta penerimaan barang vendor.",
+                $po->created_by_user_id,
                 'WAREHOUSE_OFFICER',
+                "/procurement/po/{$po->id}"
+            );
+
+            return $po;
+        });
+    }
+
+    public function rejectPurchaseOrder(PurchaseOrder $po, string $reason, User $user): PurchaseOrder
+    {
+        if ($po->created_by_user_id === $user->id) {
+            throw new Exception('Segregation of Duties: Pembuat PO tidak boleh menolak PO sendiri.');
+        }
+
+        if (! in_array($po->status, ['DRAFT', 'WAITING_APPROVAL'])) {
+            throw new Exception("Purchase Order {$po->po_number} tidak dalam status menunggu persetujuan.");
+        }
+
+        return DB::transaction(function () use ($po, $reason, $user) {
+            $previousStatus = $po->status;
+            $po->status = 'REJECTED';
+            $po->rejection_reason = $reason;
+            $po->approved_by_user_id = $user->id;
+            $po->approved_at = now();
+            $po->save();
+
+            // Rollback ordered quantity on PR items so they can be re-consolidated
+            $affectedPrIds = [];
+            foreach ($po->items as $poItem) {
+                if ($poItem->purchaseRequestItem) {
+                    $prItem = $poItem->purchaseRequestItem;
+                    $prItem->qty_ordered = max(0, $prItem->qty_ordered - $poItem->qty_ordered);
+                    $prItem->save();
+                    $affectedPrIds[$prItem->purchase_request_id] = true;
+                }
+            }
+
+            foreach (array_keys($affectedPrIds) as $prId) {
+                $pr = PurchaseRequest::with('items')->find($prId);
+                if ($pr) {
+                    $allFullyOrdered = $pr->items->every(fn ($i) => $i->qty_ordered >= $i->qty_approved);
+                    $anyOrdered = $pr->items->some(fn ($i) => $i->qty_ordered > 0);
+
+                    if ($allFullyOrdered) {
+                        $pr->status = 'FULLY_ORDERED';
+                    } elseif ($anyOrdered) {
+                        $pr->status = 'PARTIALLY_ORDERED';
+                    } else {
+                        $pr->status = 'APPROVED';
+                    }
+                    $pr->save();
+                }
+            }
+
+            AuditTrailService::log('REJECT_PO', $po, ['status' => $previousStatus], ['status' => 'REJECTED', 'reason' => $reason], $user);
+
+            NotificationService::sendInfo(
+                'Purchase Order Ditolak',
+                "PO {$po->po_number} telah ditolak. Alasan: {$reason}. Alokasi item PR telah dikembalikan ke Approved PR Pool.",
+                $po->created_by_user_id,
+                'PROCUREMENT_OFFICER',
                 "/procurement/po/{$po->id}"
             );
 
@@ -279,10 +403,121 @@ class ProcurementService
                 "Barang dari vendor telah diterima dan diposting ke Stock Ledger (GRN: {$grn->grn_number}).",
                 null,
                 'INVENTORY_OFFICER',
-                "/procurement/po/{$po->id}"
+                '/receiving/po?tab=history'
             );
 
             return $grn;
+        });
+    }
+
+    public function updatePurchaseOrder(
+        PurchaseOrder $po,
+        array $data,
+        User $user
+    ): PurchaseOrder {
+        if (in_array($po->status, ['COMPLETED', 'PARTIAL_RECEIVED', 'CANCELLED', 'REJECTED'])) {
+            throw new Exception("Purchase Order {$po->po_number} dengan status {$po->status} tidak dapat diubah.");
+        }
+
+        if ($po->goodsReceipts()->exists() || $po->items()->where('qty_received', '>', 0)->exists()) {
+            throw new Exception("Purchase Order {$po->po_number} tidak dapat diubah karena sudah memiliki riwayat penerimaan barang.");
+        }
+
+        return DB::transaction(function () use ($po, $data, $user) {
+            $oldData = $po->only(['vendor_id', 'warehouse_id', 'expected_delivery_date', 'notes', 'subtotal', 'tax_amount', 'total_amount']);
+
+            if (isset($data['vendor_id'])) {
+                $po->vendor_id = $data['vendor_id'];
+            }
+            if (isset($data['warehouse_id'])) {
+                $po->warehouse_id = $data['warehouse_id'];
+            }
+            if (array_key_exists('expected_delivery_date', $data)) {
+                $po->expected_delivery_date = $data['expected_delivery_date'];
+            }
+            if (array_key_exists('notes', $data)) {
+                $po->notes = $data['notes'];
+            }
+
+            if (! empty($data['items']) && is_array($data['items'])) {
+                foreach ($data['items'] as $itemData) {
+                    if (isset($itemData['id'])) {
+                        $poItem = $po->items()->where('id', $itemData['id'])->first();
+                        if ($poItem && isset($itemData['unit_price'])) {
+                            $newUnitPrice = max(0, (float) $itemData['unit_price']);
+                            $poItem->unit_price = $newUnitPrice;
+                            $poItem->subtotal = $poItem->qty_ordered * $newUnitPrice;
+                            $poItem->save();
+                        }
+                    }
+                }
+            }
+
+            $po->load('items');
+            $subtotal = $po->items->sum('subtotal');
+            $taxAmount = round($subtotal * 0.11, 2);
+            $totalAmount = $subtotal + $taxAmount;
+
+            $po->subtotal = $subtotal;
+            $po->tax_amount = $taxAmount;
+            $po->total_amount = $totalAmount;
+            $po->save();
+
+            AuditTrailService::log('UPDATE_PO', $po, $oldData, $po->only(['vendor_id', 'warehouse_id', 'expected_delivery_date', 'notes', 'subtotal', 'tax_amount', 'total_amount']), $user);
+
+            return $po;
+        });
+    }
+
+    public function deletePurchaseOrder(
+        PurchaseOrder $po,
+        User $user
+    ): bool {
+        if (in_array($po->status, ['COMPLETED', 'PARTIAL_RECEIVED'])) {
+            throw new Exception("Purchase Order {$po->po_number} tidak dapat dihapus karena sudah dalam status {$po->status}.");
+        }
+
+        if ($po->goodsReceipts()->exists() || $po->items()->where('qty_received', '>', 0)->exists()) {
+            throw new Exception("Purchase Order {$po->po_number} tidak dapat dihapus karena sudah memiliki riwayat penerimaan barang.");
+        }
+
+        return DB::transaction(function () use ($po, $user) {
+            $po->load(['items.purchaseRequestItem']);
+            $affectedPrIds = [];
+
+            // Rollback ordered quantity on PR items so they return to Approved PR Pool
+            foreach ($po->items as $poItem) {
+                if ($poItem->purchaseRequestItem) {
+                    $prItem = $poItem->purchaseRequestItem;
+                    $prItem->qty_ordered = max(0, $prItem->qty_ordered - $poItem->qty_ordered);
+                    $prItem->save();
+                    $affectedPrIds[$prItem->purchase_request_id] = true;
+                }
+            }
+
+            foreach (array_keys($affectedPrIds) as $prId) {
+                $pr = PurchaseRequest::with('items')->find($prId);
+                if ($pr) {
+                    $allFullyOrdered = $pr->items->every(fn ($i) => $i->qty_ordered >= $i->qty_approved);
+                    $anyOrdered = $pr->items->some(fn ($i) => $i->qty_ordered > 0);
+
+                    if ($allFullyOrdered) {
+                        $pr->status = 'FULLY_ORDERED';
+                    } elseif ($anyOrdered) {
+                        $pr->status = 'PARTIALLY_ORDERED';
+                    } else {
+                        $pr->status = 'APPROVED';
+                    }
+                    $pr->save();
+                }
+            }
+
+            AuditTrailService::log('DELETE_PO', $po, $po->toArray(), null, $user);
+
+            $po->items()->delete();
+            $po->delete();
+
+            return true;
         });
     }
 }

@@ -107,19 +107,6 @@ class ProcurementController extends Controller
         ));
     }
 
-    public function prCreate()
-    {
-        $user = Auth::user();
-        $isBranch = $user->isBranchUser() && $user->organization_id;
-
-        $organizations = $isBranch
-            ? Organization::where('id', $user->organization_id)->get()
-            : Organization::where('is_active', true)->get();
-        $items = Item::where('is_active', true)->get();
-
-        return view('procurement.pr.create', compact('organizations', 'items'));
-    }
-
     public function prStore(Request $request)
     {
         $user = Auth::user();
@@ -320,7 +307,7 @@ class ProcurementController extends Controller
                 Auth::user()
             );
 
-            return redirect()->route('procurement.po.show', $po->id)
+            return redirect()->route('procurement.consolidation.index')
                 ->with('success', "Purchase Order {$po->po_number} berhasil diterbitkan dari konsolidasi PR.");
         } catch (Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());
@@ -329,27 +316,120 @@ class ProcurementController extends Controller
 
     public function poIndex(Request $request)
     {
-        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 15;
-        $pos = PurchaseOrder::with(['vendor', 'warehouse', 'creator', 'items.item'])
-            ->latest()
-            ->paginate($perPage)
-            ->withQueryString();
+        $search = $request->get('search');
+        $status = $request->get('status');
+        $vendorId = $request->get('vendor_id');
+        $warehouseId = $request->get('warehouse_id');
+        $sortBy = $request->get('sort_by', 'order_date');
+        $sortDir = $request->get('sort_dir', 'desc');
 
-        return view('procurement.po.index', compact('pos'));
+        $query = PurchaseOrder::with(['vendor', 'warehouse', 'creator', 'items.item']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('po_number', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhereHas('vendor', fn ($vq) => $vq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
+                    ->orWhereHas('warehouse', fn ($wq) => $wq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
+                    ->orWhereHas('creator', fn ($cq) => $cq->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        if ($status && $status !== 'ALL') {
+            $query->where('status', $status);
+        }
+
+        if ($vendorId && $vendorId !== 'ALL') {
+            $query->where('vendor_id', $vendorId);
+        }
+
+        if ($warehouseId && $warehouseId !== 'ALL') {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        $allowedSorts = ['order_date', 'created_at', 'po_number', 'total_amount', 'status'];
+        if (in_array($sortBy, $allowedSorts)) {
+            $query->orderBy($sortBy, $sortDir === 'asc' ? 'asc' : 'desc');
+        } else {
+            $query->latest('order_date');
+        }
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $pos = $query->paginate($perPage)->withQueryString();
+
+        $vendors = Vendor::where('is_active', true)->get();
+        $warehouses = Warehouse::where('is_active', true)->get();
+
+        return view('procurement.po.index', compact(
+            'pos',
+            'vendors',
+            'warehouses',
+            'search',
+            'status',
+            'vendorId',
+            'warehouseId',
+            'sortBy',
+            'sortDir',
+            'perPage'
+        ));
     }
 
-    public function poShow($id)
+    public function poPrint($id)
     {
         $po = PurchaseOrder::with([
             'vendor',
             'warehouse',
             'creator',
+            'approver',
             'items.item.category',
-            'items.purchaseRequestItem.purchaseRequest',
-            'goodsReceipts.items.item',
         ])->findOrFail($id);
 
-        return view('procurement.po.show', compact('po'));
+        return view('procurement.po.print', compact('po'));
+    }
+
+    public function poUpdate(Request $request, $id)
+    {
+        $po = PurchaseOrder::with(['items', 'goodsReceipts'])->findOrFail($id);
+
+        $request->validate([
+            'vendor_id' => 'required|exists:vendors,id',
+            'warehouse_id' => 'required|exists:warehouses,id',
+            'expected_delivery_date' => 'nullable|date',
+            'notes' => 'nullable|string',
+            'items' => 'nullable|array',
+            'items.*.id' => 'required|exists:purchase_order_items,id',
+            'items.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            $this->procurementService->updatePurchaseOrder($po, $request->only([
+                'vendor_id',
+                'warehouse_id',
+                'expected_delivery_date',
+                'notes',
+                'items',
+            ]), Auth::user());
+
+            return redirect()->route('procurement.po.index')
+                ->with('success', "Purchase Order {$po->po_number} berhasil diperbarui.");
+        } catch (Exception $e) {
+            return back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function poDestroy($id)
+    {
+        $po = PurchaseOrder::with(['items.purchaseRequestItem', 'goodsReceipts'])->findOrFail($id);
+
+        try {
+            $poNumber = $po->po_number;
+            $this->procurementService->deletePurchaseOrder($po, Auth::user());
+
+            return redirect()->route('procurement.po.index')
+                ->with('success', "Purchase Order {$poNumber} berhasil dihapus dan item PR telah dikembalikan ke Approved PR Pool.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 
     // Goods Receipt from Vendor
@@ -373,10 +453,221 @@ class ProcurementController extends Controller
                 Auth::user()
             );
 
-            return redirect()->route('procurement.po.show', $po->id)
+            return redirect()->route('procurement.po.index')
                 ->with('success', "Penerimaan barang vendor berhasil diposting ke Stock Ledger (GRN: {$grn->grn_number}).");
         } catch (Exception $e) {
             return back()->withInput()->with('error', $e->getMessage());
+        }
+    }
+
+    public function prApprovals(Request $request)
+    {
+        $search = $request->get('search');
+        $tab = $request->get('tab', 'pending');
+        $organizationId = $request->get('organization_id');
+        $user = Auth::user();
+        $isBranch = $user->isBranchUser() && $user->organization_id;
+
+        $query = PurchaseRequest::with(['organization', 'requester', 'approver', 'items.item']);
+
+        if ($isBranch) {
+            $query->where('organization_id', $user->organization_id);
+            $organizationId = (string) $user->organization_id;
+        } elseif ($organizationId && $organizationId !== 'ALL') {
+            $query->where('organization_id', $organizationId);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('pr_number', 'like', "%{$search}%")
+                    ->orWhere('purpose', 'like', "%{$search}%")
+                    ->orWhereHas('organization', fn ($oq) => $oq->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%"))
+                    ->orWhereHas('requester', fn ($rq) => $rq->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // Apply Tab Filter
+        match ($tab) {
+            'approved' => $query->whereIn('status', ['APPROVED', 'PARTIALLY_ORDERED', 'FULLY_ORDERED']),
+            'rejected' => $query->where('status', 'REJECTED'),
+            'all' => null,
+            default => $query->whereIn('status', ['SUBMITTED', 'WAITING_APPROVAL']),
+        };
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $prs = $query->latest()->paginate($perPage)->withQueryString();
+
+        // Calculate KPI Counts (Branch-scoped if branch user)
+        $kpiQuery = PurchaseRequest::query();
+        if ($isBranch) {
+            $kpiQuery->where('organization_id', $user->organization_id);
+        }
+
+        $pendingCount = (clone $kpiQuery)->whereIn('status', ['SUBMITTED', 'WAITING_APPROVAL'])->count();
+        $approvedCount = (clone $kpiQuery)->whereIn('status', ['APPROVED', 'PARTIALLY_ORDERED', 'FULLY_ORDERED'])->count();
+        $rejectedCount = (clone $kpiQuery)->where('status', 'REJECTED')->count();
+        $allCount = (clone $kpiQuery)->count();
+        $pendingValue = (float) (clone $kpiQuery)->whereIn('status', ['SUBMITTED', 'WAITING_APPROVAL'])->sum('estimated_total_cost');
+
+        // PO Pending count for top tab switcher badge
+        $pendingPoBadge = PurchaseOrder::whereIn('status', ['WAITING_APPROVAL', 'DRAFT'])->count();
+
+        $organizations = $isBranch
+            ? Organization::where('id', $user->organization_id)->get(['id', 'name', 'code'])
+            : Organization::where('is_active', true)->orderBy('name')->get(['id', 'name', 'code']);
+
+        return view('procurement.approvals.pr', compact(
+            'prs',
+            'tab',
+            'search',
+            'organizationId',
+            'organizations',
+            'perPage',
+            'pendingCount',
+            'approvedCount',
+            'rejectedCount',
+            'allCount',
+            'pendingValue',
+            'pendingPoBadge'
+        ));
+    }
+
+    public function prReject(Request $request, $id)
+    {
+        $request->validate([
+            'rejection_reason' => 'required|string|max:1000',
+        ]);
+
+        $pr = PurchaseRequest::findOrFail($id);
+        $user = Auth::user();
+
+        if (! $user->hasRole('SUPER_ADMIN', 'PROCUREMENT_APPROVER')) {
+            return back()->with('error', 'Anda tidak memiliki wewenang untuk menolak Purchase Request.');
+        }
+
+        if ($user->isBranchUser() && $user->organization_id && $pr->organization_id !== $user->organization_id) {
+            return back()->with('error', 'Anda tidak memiliki wewenang untuk memproses PR milik unit kerja lain.');
+        }
+
+        try {
+            $this->procurementService->rejectPurchaseRequest($pr, $request->rejection_reason, $user);
+
+            return back()->with('success', "Purchase Request {$pr->pr_number} telah ditolak.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function poApprovals(Request $request)
+    {
+        $search = $request->get('search');
+        $tab = $request->get('tab', 'pending');
+        $vendorId = $request->get('vendor_id');
+        $warehouseId = $request->get('warehouse_id');
+
+        $query = PurchaseOrder::with(['vendor', 'warehouse', 'creator', 'approver', 'items.item', 'items.purchaseRequestItem.purchaseRequest']);
+
+        if ($vendorId && $vendorId !== 'ALL') {
+            $query->where('vendor_id', $vendorId);
+        }
+
+        if ($warehouseId && $warehouseId !== 'ALL') {
+            $query->where('warehouse_id', $warehouseId);
+        }
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('po_number', 'like', "%{$search}%")
+                    ->orWhere('notes', 'like', "%{$search}%")
+                    ->orWhereHas('vendor', fn ($vq) => $vq->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('warehouse', fn ($wq) => $wq->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // Apply Tab Filter
+        match ($tab) {
+            'issued' => $query->whereIn('status', ['ISSUED', 'VENDOR_PROCESS', 'IN_DELIVERY', 'PARTIAL_RECEIVED']),
+            'completed' => $query->where('status', 'COMPLETED'),
+            'rejected' => $query->whereIn('status', ['REJECTED', 'CANCELLED']),
+            'all' => null,
+            default => $query->whereIn('status', ['WAITING_APPROVAL', 'DRAFT']),
+        };
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
+        $pos = $query->latest()->paginate($perPage)->withQueryString();
+
+        // Calculate KPI Counts
+        $pendingCount = PurchaseOrder::whereIn('status', ['WAITING_APPROVAL', 'DRAFT'])->count();
+        $issuedCount = PurchaseOrder::whereIn('status', ['ISSUED', 'VENDOR_PROCESS', 'IN_DELIVERY', 'PARTIAL_RECEIVED'])->count();
+        $completedCount = PurchaseOrder::where('status', 'COMPLETED')->count();
+        $rejectedCount = PurchaseOrder::whereIn('status', ['REJECTED', 'CANCELLED'])->count();
+        $allCount = PurchaseOrder::count();
+        $pendingValue = (float) PurchaseOrder::whereIn('status', ['WAITING_APPROVAL', 'DRAFT'])->sum('total_amount');
+
+        // PR Pending count for top tab switcher badge
+        $pendingPrBadge = PurchaseRequest::whereIn('status', ['SUBMITTED', 'WAITING_APPROVAL'])->count();
+
+        $vendors = Vendor::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+        $warehouses = Warehouse::where('is_active', true)->orderBy('name')->get(['id', 'name']);
+
+        return view('procurement.approvals.po', compact(
+            'pos',
+            'tab',
+            'search',
+            'vendorId',
+            'warehouseId',
+            'vendors',
+            'warehouses',
+            'perPage',
+            'pendingCount',
+            'issuedCount',
+            'completedCount',
+            'rejectedCount',
+            'allCount',
+            'pendingValue',
+            'pendingPrBadge'
+        ));
+    }
+
+    public function poApprove(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        if (! $user->hasRole('SUPER_ADMIN', 'PROCUREMENT_APPROVER')) {
+            return back()->with('error', 'Anda tidak memiliki wewenang untuk menyetujui Purchase Order.');
+        }
+
+        $po = PurchaseOrder::findOrFail($id);
+
+        try {
+            $this->procurementService->approvePurchaseOrder($po, $user);
+
+            return back()->with('success', "Purchase Order {$po->po_number} berhasil disetujui dan diterbitkan.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function poReject(Request $request, $id)
+    {
+        $request->validate([
+            'rejection_reason' => 'required|string|max:1000',
+        ]);
+
+        $user = Auth::user();
+
+        if (! $user->hasRole('SUPER_ADMIN', 'PROCUREMENT_APPROVER')) {
+            return back()->with('error', 'Anda tidak memiliki wewenang untuk menolak Purchase Order.');
+        }
+
+        $po = PurchaseOrder::findOrFail($id);
+
+        try {
+            $this->procurementService->rejectPurchaseOrder($po, $request->rejection_reason, $user);
+
+            return back()->with('success', "Purchase Order {$po->po_number} telah ditolak dan alokasi item PR telah dikembalikan.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
         }
     }
 }

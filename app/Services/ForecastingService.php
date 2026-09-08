@@ -53,6 +53,7 @@ class ForecastingService
             'sku' => $item->sku,
             'name' => $item->name,
             'uom' => $item->uom,
+            'category_name' => $item->category?->name ?? '-',
             'avg_monthly_demand' => round($avgMonthlyDemand, 1),
             'daily_demand' => round($dailyDemand, 2),
             'lead_time_days' => $leadTimeDays,
@@ -69,7 +70,7 @@ class ForecastingService
 
     public function getAllForecasts(): array
     {
-        $items = Item::with('stockBalances')->where('is_active', true)->get();
+        $items = Item::with(['category', 'stockBalances'])->where('is_active', true)->get();
         $results = [];
         foreach ($items as $item) {
             $results[] = $this->getItemForecast($item);
