@@ -11,6 +11,10 @@ use Illuminate\Support\Facades\DB;
 
 class SettlementService
 {
+    public function __construct(
+        protected GeneralLedgerService $generalLedgerService
+    ) {}
+
     public function createSettlementForOrder(Order $order, User $user): Settlement
     {
         return DB::transaction(function () use ($order, $user) {
@@ -72,6 +76,9 @@ class SettlementService
                 $budget->realized_amount += $settlement->total_amount;
                 $budget->save();
             }
+
+            // Post balanced journal entries to General Ledger
+            $this->generalLedgerService->recordSettlementJournal($settlement, $approver);
 
             // Close order to COMPLETED
             $order->status = 'COMPLETED';

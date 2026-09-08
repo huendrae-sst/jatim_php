@@ -27,6 +27,11 @@ class Shipment extends Model
         return $this->belongsTo(Order::class);
     }
 
+    public function switchingStock(): BelongsTo
+    {
+        return $this->belongsTo(SwitchingStock::class);
+    }
+
     public function originWarehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class, 'origin_warehouse_id');

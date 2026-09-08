@@ -33,6 +33,14 @@ class RoleAndOrganizationAccessControlTest extends TestCase
         $response->assertSee('Permintaan & Order', false);
         $response->assertSee('Penerimaan', false);
         $response->assertSee('Stock Balances');
+        $response->assertSee('Purchase Request (PR)');
+        $response->assertSee(route('procurement.pr.index'), false);
+
+        // Charts
+        $response->assertSee('Tren Arus Masuk vs Keluar Barang');
+        $response->assertSee('Top 5 Barang Paling Banyak Bergerak');
+        $response->assertSee('id="movementChart"', false);
+        $response->assertSee('id="fastMovingChart"', false);
 
         // Sidebar hidden items for regular branch requester
         $response->assertDontSee(route('master.organizations'), false);
@@ -40,6 +48,8 @@ class RoleAndOrganizationAccessControlTest extends TestCase
         $response->assertDontSee(route('finance.settlements.index'), false);
         $response->assertDontSee('Konsolidasi PR & Vendor', false);
         $response->assertDontSee(route('orders.approvals'), false); // Requester cannot see approvals link in sidebar
+        $response->assertDontSee(route('procurement.po.index'), false);
+        $response->assertDontSee(route('procurement.approvals.pr'), false);
     }
 
     public function test_branch_user_order_index_is_scoped_to_own_organization(): void
@@ -123,5 +133,11 @@ class RoleAndOrganizationAccessControlTest extends TestCase
         $response->assertSee('Settlement');
         $response->assertSee('Audit Trail Sistem');
         $response->assertSee('Laporan & Rekapitulasi', false);
+
+        // Informative Charts
+        $response->assertSee('Tren Arus Masuk vs Keluar Barang');
+        $response->assertSee('Top 5 Barang Paling Banyak Bergerak');
+        $response->assertSee('id="movementChart"', false);
+        $response->assertSee('id="fastMovingChart"', false);
     }
 }

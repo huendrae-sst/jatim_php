@@ -20,6 +20,7 @@ use App\Models\Warehouse;
 use App\Services\EarlyWarningService;
 use App\Services\ForecastingService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class DashboardController extends Controller
 {
@@ -171,6 +172,84 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
+        // 10. Chart 3: Monthly Inbound vs Outbound Stock Movements (Last 6 Months)
+        $movementStartDate = now()->subMonths(5)->startOfMonth();
+        $movementQuery = StockLedger::where('created_at', '>=', $movementStartDate);
+
+        if ($isBranch && $user->organization_id) {
+            if ($user->warehouse_id) {
+                $movementQuery->where('warehouse_id', $user->warehouse_id);
+            } else {
+                $movementQuery->whereHas('warehouse', fn ($w) => $w->where('organization_id', $user->organization_id));
+            }
+        }
+        $recentLedgers = $movementQuery->get();
+
+        $monthlyMovements = collect(range(5, 0))->map(function ($i) use ($recentLedgers) {
+            $date = now()->subMonths($i);
+            $key = $date->format('Y-m');
+            $matching = $recentLedgers->filter(fn ($l) => $l->created_at->format('Y-m') === $key);
+
+            return [
+                'month' => $date->translatedFormat('M Y'),
+                'in' => (int) $matching->sum('qty_in'),
+                'out' => (int) $matching->sum('qty_out'),
+            ];
+        })->values();
+
+        // 11. Chart 4: Top 5 Fast-Moving Items
+        $fastMovingQuery = StockLedger::with('item')->where('qty_out', '>', 0);
+        if ($isBranch && $user->organization_id) {
+            if ($user->warehouse_id) {
+                $fastMovingQuery->where('warehouse_id', $user->warehouse_id);
+            } else {
+                $fastMovingQuery->whereHas('warehouse', fn ($w) => $w->where('organization_id', $user->organization_id));
+            }
+        }
+        $topFastMoving = $fastMovingQuery->get()
+            ->groupBy('item_id')
+            ->map(function ($rows) {
+                $item = $rows->first()->item;
+
+                return [
+                    'name' => $item ? Str::limit($item->name, 22) : 'Item #'.$rows->first()->item_id,
+                    'sku' => $item->sku ?? '-',
+                    'qty' => (int) $rows->sum('qty_out'),
+                    'uom' => $item->uom ?? 'Unit',
+                ];
+            })
+            ->sortByDesc('qty')
+            ->take(5)
+            ->values();
+
+        // Fallback to top items by on-hand balance if no outbound movement recorded yet
+        if ($topFastMoving->isEmpty()) {
+            $balanceFallbackQuery = StockBalance::with('item');
+            if ($isBranch && $user->organization_id) {
+                if ($user->warehouse_id) {
+                    $balanceFallbackQuery->where('warehouse_id', $user->warehouse_id);
+                } else {
+                    $balanceFallbackQuery->whereHas('warehouse', fn ($w) => $w->where('organization_id', $user->organization_id));
+                }
+            }
+            $topFastMoving = $balanceFallbackQuery->get()
+                ->groupBy('item_id')
+                ->map(function ($rows) {
+                    $item = $rows->first()->item;
+
+                    return [
+                        'name' => $item ? Str::limit($item->name, 22) : 'Item #'.$rows->first()->item_id,
+                        'sku' => $item->sku ?? '-',
+                        'qty' => (int) $rows->sum('on_hand'),
+                        'uom' => $item->uom ?? 'Unit',
+                    ];
+                })
+                ->filter(fn ($item) => $item['qty'] > 0)
+                ->sortByDesc('qty')
+                ->take(5)
+                ->values();
+        }
+
         return view('dashboard.index', compact(
             'user',
             'isBranch',
@@ -224,6 +303,8 @@ class DashboardController extends Controller
             'movementIn',
             'movementOut',
             'movementBranch',
+            'monthlyMovements',
+            'topFastMoving',
             'recentOrders',
             'notifications',
             'ewsSummary'

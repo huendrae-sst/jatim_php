@@ -27,6 +27,11 @@ class Receiving extends Model
         return $this->belongsTo(Order::class);
     }
 
+    public function switchingStock(): BelongsTo
+    {
+        return $this->belongsTo(SwitchingStock::class);
+    }
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);

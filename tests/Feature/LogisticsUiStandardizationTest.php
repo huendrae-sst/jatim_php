@@ -169,4 +169,29 @@ class LogisticsUiStandardizationTest extends TestCase
         // Ensure old prototype styling is removed
         $response->assertDontSee('rounded-2xl', false);
     }
+
+    public function test_branch_user_receiving_and_discrepancies_access_with_organization_scoping(): void
+    {
+        $branchUser = User::where('role', 'REQUESTER_CABANG')->whereNotNull('organization_id')->firstOrFail();
+
+        // Branch user accessing incoming shipments tab
+        $responseIncoming = $this->actingAs($branchUser)->get(route('receiving.index'));
+        $responseIncoming->assertStatus(200);
+
+        // Branch user accessing history tab
+        $responseHistory = $this->actingAs($branchUser)->get(route('receiving.index', ['tab' => 'history']));
+        $responseHistory->assertStatus(200);
+
+        // Branch user accessing discrepancies
+        $responseDiscrepancies = $this->actingAs($branchUser)->get(route('receiving.discrepancies'));
+        $responseDiscrepancies->assertStatus(200);
+
+        // Admin filtering by organization_id
+        $admin = User::where('role', 'SUPER_ADMIN')->firstOrFail();
+        $responseAdminFiltered = $this->actingAs($admin)->get(route('receiving.index', ['organization_id' => $branchUser->organization_id]));
+        $responseAdminFiltered->assertStatus(200);
+
+        $responseAdminDiscrepancies = $this->actingAs($admin)->get(route('receiving.discrepancies', ['organization_id' => $branchUser->organization_id]));
+        $responseAdminDiscrepancies->assertStatus(200);
+    }
 }

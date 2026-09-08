@@ -158,4 +158,37 @@ class ProcurementPrManagementTest extends TestCase
             'purchase_request_id' => $pr->id,
         ]);
     }
+
+    public function test_branch_requester_can_access_and_create_pr_scoped_to_own_branch(): void
+    {
+        $branchUser = User::where('email', 'requester.sby@bankjatim.co.id')->firstOrFail();
+        $item = Item::firstOrFail();
+
+        // 1. Can view PR Index
+        $responseIndex = $this->actingAs($branchUser)->get(route('procurement.pr.index'));
+        $responseIndex->assertStatus(200);
+        $responseIndex->assertSee('Purchase Requests (PR)');
+        $responseIndex->assertSee('Buat PR Baru');
+
+        // 2. Can create PR
+        $responseStore = $this->actingAs($branchUser)->post(route('procurement.pr.store'), [
+            'organization_id' => $branchUser->organization_id,
+            'procurement_method' => 'E_PURCHASING',
+            'purpose' => 'Pengadaan Kertas Form Cabang Surabaya',
+            'items' => [
+                [
+                    'item_id' => $item->id,
+                    'qty' => 10,
+                    'unit_price' => 75000,
+                ],
+            ],
+        ]);
+
+        $responseStore->assertRedirect(route('procurement.pr.index'));
+        $this->assertDatabaseHas('purchase_requests', [
+            'organization_id' => $branchUser->organization_id,
+            'created_by_user_id' => $branchUser->id,
+            'purpose' => 'Pengadaan Kertas Form Cabang Surabaya',
+        ]);
+    }
 }

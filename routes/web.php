@@ -132,12 +132,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/early-warning/scan', [EarlyWarningController::class, 'scan'])->name('early_warning.scan');
         Route::get('/early-warning/export-csv', [EarlyWarningController::class, 'exportCsv'])->name('early_warning.csv');
         Route::get('/forecasting', [InventoryController::class, 'forecasting'])->name('forecasting');
+        Route::get('/switching-stocks/approvals', [SwitchingStockController::class, 'approvals'])->name('switching.approvals');
         Route::get('/switching-stocks', [SwitchingStockController::class, 'index'])->name('switching.index');
         Route::get('/switching-stocks/recommendations', [SwitchingStockController::class, 'recommendations'])->name('switching.recommendations');
         Route::post('/switching-stocks', [SwitchingStockController::class, 'store'])->name('switching.store');
         Route::put('/switching-stocks/{id}', [SwitchingStockController::class, 'update'])->name('switching.update');
         Route::delete('/switching-stocks/{id}', [SwitchingStockController::class, 'destroy'])->name('switching.destroy');
         Route::post('/switching-stocks/{id}/approve', [SwitchingStockController::class, 'approve'])->name('switching.approve');
+        Route::post('/switching-stocks/{id}/reject', [SwitchingStockController::class, 'reject'])->name('switching.reject');
+        Route::post('/switching-stocks/{id}/dispatch', [SwitchingStockController::class, 'dispatchTransfer'])->name('switching.dispatch');
+        Route::post('/switching-stocks/{id}/receive', [SwitchingStockController::class, 'receiveTransfer'])->name('switching.receive');
     });
 
     // Executive & Operational Reports
@@ -147,6 +151,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/stock-valuation/export-csv', [ReportController::class, 'exportStockValuationCsv'])->name('stock_valuation.csv');
         Route::get('/procurement-coverage', [ReportController::class, 'procurementCoverage'])->name('procurement_coverage');
         Route::get('/settlements', [ReportController::class, 'settlementsReport'])->name('settlements');
+        Route::get('/general-ledger', [ReportController::class, 'generalLedger'])->name('general_ledger');
+        Route::get('/general-ledger/export-csv', [ReportController::class, 'exportGeneralLedgerCsv'])->name('general_ledger.csv');
     });
 
     // Master Data & Access

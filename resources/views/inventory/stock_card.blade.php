@@ -66,6 +66,9 @@
                         <input type="hidden" name="transaction_type" value="{{ $transactionType }}">
                         <input type="hidden" name="per_page" value="{{ $perPage }}">
                         <select name="warehouse_id" onchange="this.form.submit()" class="form-select form-select-sm fs-8 fw-semibold border-secondary-subtle">
+                            <option value="ALL" {{ (string)$selectedWarehouseId === 'ALL' ? 'selected' : '' }}>
+                                -- Semua Lokasi Gudang (Konsolidasi Seluruh Unit) --
+                            </option>
                             @foreach($warehouses as $wh)
                                 <option value="{{ $wh->id }}" {{ (string)$selectedWarehouseId === (string)$wh->id ? 'selected' : '' }}>
                                     [{{ $wh->code }}] {{ $wh->name }} - {{ $wh->organization->name ?? '' }} ({{ $wh->organization->city ?? '' }})
@@ -82,6 +85,12 @@
                         </span>
                         <span class="text-secondary fs-8">
                             <i class="bi bi-building me-1"></i>{{ $currentWarehouse->organization->name ?? '-' }}
+                        </span>
+                    </div>
+                @else
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle fs-8">
+                            <i class="bi bi-globe me-1"></i> Konsolidasi Seluruh Gudang
                         </span>
                     </div>
                 @endif
@@ -254,7 +263,10 @@
                                     </span>
                                 </td>
                                 <td class="py-3 font-monospace fw-semibold text-body fs-8">
-                                    {{ $lg->reference_number ?? '-' }}
+                                    <div>{{ $lg->reference_number ?? '-' }}</div>
+                                    <div class="text-secondary fw-normal fs-9 font-sans mt-0.5">
+                                        <i class="bi bi-geo-alt me-0.5 text-danger"></i>{{ $lg->warehouse->name ?? '-' }}
+                                    </div>
                                 </td>
                                 <td class="py-3 text-center font-monospace fw-bold {{ $lg->qty_in > 0 ? 'text-success' : 'text-secondary' }}">
                                     {{ $lg->qty_in > 0 ? '+' . number_format($lg->qty_in) : '-' }}

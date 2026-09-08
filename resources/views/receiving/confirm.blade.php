@@ -22,18 +22,34 @@
             <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">No. Manifest & Resi</div>
             <div class="text-xs font-bold text-slate-900 mt-1">{{ $shipment->manifest_number }}</div>
             <div class="text-[11px] text-indigo-700 font-mono">Resi: {{ $shipment->tracking_number }}</div>
+            @if($shipment->switching_stock_id)
+                <div class="mt-1"><span class="badge bg-info-subtle text-info font-monospace text-[10px]">TRANSFER SWITCHING #{{ $shipment->switchingStock->transfer_number ?? $shipment->switching_stock_id }}</span></div>
+            @elseif($shipment->order)
+                <div class="mt-1"><span class="badge bg-secondary-subtle text-secondary font-monospace text-[10px]">ORDER #{{ $shipment->order->order_number }}</span></div>
+            @endif
         </div>
 
         <div>
-            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Unit Penerima</div>
-            <div class="text-xs font-bold text-slate-900 mt-1">{{ $shipment->order->requestingOrganization->name }}</div>
-            <div class="text-[11px] text-slate-500">{{ $shipment->order->requestingOrganization->city }}</div>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Unit & Gudang Penerima</div>
+            @php
+                $destOrg = $shipment->order->requestingOrganization ?? $shipment->switchingStock->destinationOrganization ?? $shipment->destinationOrganization ?? null;
+                $destWh = $shipment->switchingStock->destinationWarehouse ?? null;
+                $srcWh = $shipment->switchingStock->sourceWarehouse ?? $shipment->originWarehouse ?? null;
+                $isSwitching = (bool) $shipment->switching_stock_id;
+                $shipmentItems = $isSwitching 
+                    ? ($shipment->switchingStock->items ?? collect()) 
+                    : ($shipment->order->items ?? collect());
+            @endphp
+            <div class="text-xs font-bold text-slate-900 mt-1">{{ $destOrg->name ?? '-' }}</div>
+            <div class="text-[11px] text-slate-500">{{ $destOrg->city ?? '-' }} @if($destWh) • Gudang: <strong>{{ $destWh->name }}</strong> @endif</div>
         </div>
 
         <div>
-            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ekspedisi Pengirim</div>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Ekspedisi & Asal Pengiriman</div>
             <div class="text-xs font-bold text-slate-900 mt-1">{{ $shipment->courier->name ?? 'Kurir Internal' }}</div>
-            <div class="text-[11px] text-slate-500">{{ $shipment->koli_count }} Koli ({{ $shipment->total_weight_kg }} kg)</div>
+            <div class="text-[11px] text-slate-500">
+                Dari: {{ $srcWh->name ?? 'Gudang Pengirim' }} &bull; {{ $shipment->koli_count }} Koli ({{ $shipment->total_weight_kg }} kg)
+            </div>
         </div>
     </div>
 
@@ -44,20 +60,34 @@
         <div class="space-y-3">
             <h3 class="text-sm font-bold text-slate-900">Verifikasi Item yang Diterima</h3>
 
-            @foreach($shipment->order->items as $idx => $it)
+            @foreach($shipmentItems as $idx => $it)
+                @php
+                    $itemQty = $isSwitching ? $it->qty_requested : ($it->qty_shipped ?? $it->qty_requested);
+                @endphp
                 <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
-                            <div class="text-xs font-bold text-slate-900">{{ $it->item->name }}</div>
-                            <div class="text-[10px] text-slate-500 font-mono">{{ $it->item->sku }} • Dikirim dari Gudang: <strong class="text-slate-800">{{ $it->qty_shipped }} {{ $it->item->uom }}</strong></div>
+                            <div class="text-xs font-bold text-slate-900">{{ $it->item->name ?? 'Item' }}</div>
+                            <div class="text-[10px] text-slate-500 font-mono">
+                                {{ $it->item->sku ?? '-' }} • 
+                                @if($isSwitching)
+                                    Dialihkan dari {{ $srcWh->name ?? 'Gudang Asal' }}: <strong class="text-slate-800">{{ $itemQty }} {{ $it->item->uom ?? 'PCS' }}</strong>
+                                @else
+                                    Dikirim dari Gudang: <strong class="text-slate-800">{{ $itemQty }} {{ $it->item->uom ?? 'PCS' }}</strong>
+                                @endif
+                            </div>
                         </div>
-                        <input type="hidden" name="items[{{ $idx }}][order_item_id]" value="{{ $it->id }}">
+                        @if($isSwitching)
+                            <input type="hidden" name="items[{{ $idx }}][switching_stock_item_id]" value="{{ $it->id }}">
+                        @else
+                            <input type="hidden" name="items[{{ $idx }}][order_item_id]" value="{{ $it->id }}">
+                        @endif
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <label class="block text-[11px] font-bold text-emerald-700 uppercase mb-1">Diterima Kondisi Baik</label>
-                            <input type="number" name="items[{{ $idx }}][qty_good]" value="{{ $it->qty_shipped }}" max="{{ $it->qty_shipped }}" min="0" required class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-center">
+                            <input type="number" name="items[{{ $idx }}][qty_good]" value="{{ $itemQty }}" max="{{ $itemQty }}" min="0" required class="w-full bg-white border border-slate-200 rounded-lg p-2 text-xs font-bold text-center">
                         </div>
 
                         <div>
@@ -91,7 +121,7 @@
                 Batal
             </a>
             <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition">
-                Simpan & Posting Stok ke Cabang
+                Simpan & Posting Stok ke Gudang
             </button>
         </div>
     </form>

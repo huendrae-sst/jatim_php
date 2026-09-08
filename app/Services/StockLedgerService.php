@@ -167,4 +167,52 @@ class StockLedgerService
             ]);
         });
     }
+
+    public function dispatchSwitchingTransfer(Warehouse $warehouse, Item $item, int $qty, string $refNo, ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qty, $refNo, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+            $balance->reserved = max(0, $balance->reserved - $qty);
+            $balance->on_hand = max(0, $balance->on_hand - $qty);
+            $balance->save();
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'TRANSFER_OUT',
+                'reference_number' => $refNo,
+                'qty_in' => 0,
+                'qty_out' => $qty,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => $qty * $item->estimated_unit_price,
+                'notes' => "Pengeluaran Transfer Switching Stock {$refNo}",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
+
+    public function receiveSwitchingTransfer(Warehouse $warehouse, Item $item, int $qtyAccepted, int $qtyDamaged, string $refNo, ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qtyAccepted, $qtyDamaged, $refNo, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+            $balance->on_hand += $qtyAccepted;
+            $balance->damaged += $qtyDamaged;
+            $balance->save();
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'TRANSFER_IN',
+                'reference_number' => $refNo,
+                'qty_in' => $qtyAccepted + $qtyDamaged,
+                'qty_out' => 0,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => ($qtyAccepted + $qtyDamaged) * $item->estimated_unit_price,
+                'notes' => "Penerimaan Transfer Switching Stock {$refNo} (Diterima: {$qtyAccepted}, Rusak: {$qtyDamaged})",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
 }

@@ -38,19 +38,38 @@
             </div>
         </div>
 
+        @php
+            $isSwitching = (bool) $shipment->switching_stock_id;
+            $destOrg = $shipment->order->requestingOrganization ?? $shipment->switchingStock->destinationOrganization ?? $shipment->destinationOrganization ?? null;
+            $destWh = $shipment->switchingStock->destinationWarehouse ?? null;
+            $srcWh = $shipment->switchingStock->sourceWarehouse ?? $shipment->originWarehouse ?? null;
+            $items = $isSwitching ? ($shipment->switchingStock->items ?? collect()) : ($shipment->order->items ?? collect());
+        @endphp
+
         <!-- Metadata -->
         <div class="grid grid-cols-2 gap-6 text-xs mb-6">
             <div class="space-y-1">
-                <div><strong>Tanggal Kirim:</strong> {{ $shipment->dispatched_at->format('d F Y') }}</div>
-                <div><strong>No. Order Referensi:</strong> {{ $shipment->order->order_number }}</div>
+                <div><strong>Tanggal Kirim:</strong> {{ $shipment->dispatched_at ? $shipment->dispatched_at->format('d F Y') : ($shipment->created_at ? $shipment->created_at->format('d F Y') : '-') }}</div>
+                <div>
+                    <strong>Dokumen Referensi:</strong> 
+                    @if($isSwitching)
+                        Transfer Switching #{{ $shipment->switchingStock->transfer_number ?? $shipment->switching_stock_id }}
+                    @else
+                        No. Order {{ $shipment->order->order_number ?? '-' }}
+                    @endif
+                </div>
+                <div><strong>Gudang Pengirim (Asal):</strong> {{ $srcWh->name ?? 'Gudang Pengirim' }}</div>
                 <div><strong>Ekspedisi / Kurir:</strong> {{ $shipment->courier->name ?? 'Internal Bank Jatim' }}</div>
                 <div><strong>No. Resi (AWB):</strong> {{ $shipment->tracking_number }}</div>
             </div>
             <div class="space-y-1 bg-slate-50 p-3 rounded border border-slate-200">
                 <div class="font-bold text-slate-700 uppercase">Unit Tujuan Pengiriman:</div>
-                <div class="font-bold text-sm text-slate-900">{{ $shipment->order->requestingOrganization->name }}</div>
-                <div>{{ $shipment->order->requestingOrganization->address }}</div>
-                <div>Telp: {{ $shipment->order->requestingOrganization->phone ?? '-' }}</div>
+                <div class="font-bold text-sm text-slate-900">{{ $destOrg->name ?? '-' }}</div>
+                @if($destWh)
+                    <div class="text-xs font-semibold text-slate-700">Gudang Tujuan: {{ $destWh->name }}</div>
+                @endif
+                <div>{{ $destOrg->address ?? '-' }}</div>
+                <div>Telp: {{ $destOrg->phone ?? '-' }}</div>
             </div>
         </div>
 
@@ -65,15 +84,18 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-200">
-                @foreach($shipment->order->items as $idx => $it)
+                @foreach($items as $idx => $it)
+                    @php
+                        $qty = $isSwitching ? $it->qty_requested : ($it->qty_shipped ?? $it->qty_requested);
+                    @endphp
                     <tr>
                         <td class="p-2 border-r border-slate-300 text-center">{{ $idx + 1 }}</td>
                         <td class="p-2 border-r border-slate-300">
-                            <strong>{{ $it->item->name }}</strong>
-                            <div class="text-[10px] text-slate-500 font-mono">{{ $it->item->sku }}</div>
+                            <strong>{{ $it->item->name ?? 'Item' }}</strong>
+                            <div class="text-[10px] text-slate-500 font-mono">{{ $it->item->sku ?? '-' }}</div>
                         </td>
-                        <td class="p-2 border-r border-slate-300 text-center">{{ $it->item->uom }}</td>
-                        <td class="p-2 text-center font-bold text-sm">{{ $it->qty_shipped }}</td>
+                        <td class="p-2 border-r border-slate-300 text-center">{{ $it->item->uom ?? 'PCS' }}</td>
+                        <td class="p-2 text-center font-bold text-sm">{{ $qty }}</td>
                     </tr>
                 @endforeach
             </tbody>

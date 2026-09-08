@@ -611,29 +611,16 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="card-footer bg-body-tertiary d-flex align-items-center justify-content-between py-2.5 px-4 border-top">
-                <div>
-                    <template x-if="viewPr?.status === 'SUBMITTED'">
-                        <form :action="'/procurement/pr/' + viewPr.id + '/approve'" method="POST" class="d-inline">
-                            @csrf
-                            <button type="submit" class="btn btn-sm btn-success fw-bold d-inline-flex align-items-center gap-1 shadow-xs" onclick="return confirm('Setujui Purchase Request ini?')">
-                                <i class="bi bi-check-circle"></i>
-                                <span>Setujui PR Ini</span>
-                            </button>
-                        </form>
-                    </template>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <a :href="'/procurement/pr/' + (viewPr ? viewPr.id : '') + '/print'" 
-                       target="_blank" 
-                       class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-xs">
-                        <i class="bi bi-printer"></i>
-                        <span>Cetak PR</span>
-                    </a>
-                    <button type="button" @click="viewModal = false" class="btn btn-sm btn-outline-secondary px-3">
-                        Tutup
-                    </button>
-                </div>
+            <div class="card-footer bg-body-tertiary d-flex align-items-center justify-content-end gap-2 py-2.5 px-4 border-top">
+                <a :href="'/procurement/pr/' + (viewPr ? viewPr.id : '') + '/print'" 
+                   target="_blank" 
+                   class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 shadow-xs">
+                    <i class="bi bi-printer"></i>
+                    <span>Cetak PR</span>
+                </a>
+                <button type="button" @click="viewModal = false" class="btn btn-sm btn-outline-secondary px-3">
+                    Tutup
+                </button>
             </div>
         </div>
     </div>

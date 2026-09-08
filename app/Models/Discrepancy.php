@@ -28,6 +28,11 @@ class Discrepancy extends Model
         return $this->belongsTo(OrderItem::class);
     }
 
+    public function switchingStockItem(): BelongsTo
+    {
+        return $this->belongsTo(SwitchingStockItem::class);
+    }
+
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);

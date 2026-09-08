@@ -123,27 +123,39 @@
                         <tbody>
                             @forelse($incomingShipments as $shp)
                                 @php
-                                    $itemCount = $shp->order ? $shp->order->items->count() : 0;
-                                    $totalQty = $shp->order ? $shp->order->items->sum('qty_requested') : 0;
+                                    $isSwitching = (bool) $shp->switching_stock_id;
+                                    $destName = $shp->order->requestingOrganization->name ?? ($shp->switchingStock->destinationOrganization->name ?? ($shp->destinationOrganization->name ?? '-'));
+                                    $destCity = $shp->order->requestingOrganization->city ?? ($shp->switchingStock->destinationOrganization->city ?? ($shp->destinationOrganization->city ?? '-'));
+                                    $originWarehouseName = $shp->switchingStock->sourceWarehouse->name ?? ($shp->originWarehouse->name ?? 'Gudang Pusat');
+                                    $itemCount = $isSwitching ? ($shp->switchingStock ? $shp->switchingStock->items->count() : 0) : ($shp->order ? $shp->order->items->count() : 0);
+                                    $totalQty = $isSwitching ? ($shp->switchingStock ? $shp->switchingStock->total_qty : 0) : ($shp->order ? $shp->order->items->sum('qty_requested') : 0);
                                     $shpJson = [
                                         'id' => $shp->id,
                                         'manifest_number' => $shp->manifest_number,
                                         'tracking_number' => $shp->tracking_number,
                                         'created_at' => $shp->created_at ? $shp->created_at->format('d M Y, H:i') : '-',
-                                        'order_number' => $shp->order->order_number ?? '-',
-                                        'branch_name' => $shp->order->requestingOrganization->name ?? '-',
-                                        'branch_city' => $shp->order->requestingOrganization->city ?? '-',
+                                        'order_number' => $isSwitching ? ('Switching #' . ($shp->switchingStock->transfer_number ?? $shp->switching_stock_id)) : ($shp->order->order_number ?? '-'),
+                                        'branch_name' => $destName,
+                                        'branch_city' => $destCity,
                                         'courier_name' => $shp->courier->name ?? 'Kurir',
-                                        'origin_warehouse' => $shp->originWarehouse->name ?? 'Gudang Pusat',
+                                        'origin_warehouse' => $originWarehouseName,
                                         'weight' => $shp->total_weight_kg ?? '1.0',
                                         'status' => $shp->status,
-                                        'items' => $shp->order ? $shp->order->items->map(fn($it) => [
-                                            'name' => $it->item->name ?? 'Item',
-                                            'sku' => $it->item->sku ?? '-',
-                                            'category' => $it->item->category->name ?? '-',
-                                            'uom' => $it->item->uom ?? 'PCS',
-                                            'qty_ordered' => $it->qty_requested ?? $it->qty_approved ?? 0,
-                                        ])->values() : [],
+                                        'items' => $isSwitching 
+                                            ? ($shp->switchingStock ? $shp->switchingStock->items->map(fn($it) => [
+                                                'name' => $it->item->name ?? 'Item',
+                                                'sku' => $it->item->sku ?? '-',
+                                                'category' => $it->item->category->name ?? '-',
+                                                'uom' => $it->item->uom ?? 'PCS',
+                                                'qty_ordered' => $it->qty_requested ?? 0,
+                                            ])->values() : [])
+                                            : ($shp->order ? $shp->order->items->map(fn($it) => [
+                                                'name' => $it->item->name ?? 'Item',
+                                                'sku' => $it->item->sku ?? '-',
+                                                'category' => $it->item->category->name ?? '-',
+                                                'uom' => $it->item->uom ?? 'PCS',
+                                                'qty_ordered' => $it->qty_requested ?? $it->qty_approved ?? 0,
+                                            ])->values() : []),
                                     ];
                                 @endphp
                                 <tr>
@@ -152,19 +164,24 @@
                                         <small class="text-muted fs-8">{{ $shp->created_at ? $shp->created_at->format('d M Y') : '-' }}</small>
                                     </td>
                                     <td>
-                                        <span class="font-monospace fw-semibold text-slate-800 d-block">{{ $shp->order->order_number ?? '-' }}</span>
-                                        <small class="text-muted fs-8">Tgl Order: {{ $shp->order && $shp->order->order_date ? $shp->order->order_date->format('d/m/Y') : '-' }}</small>
+                                        @if($isSwitching)
+                                            <span class="badge bg-info-subtle text-info font-monospace fs-9 mb-1">TRANSFER SWITCHING</span>
+                                            <span class="font-monospace fw-semibold text-slate-800 d-block">#{{ $shp->switchingStock->transfer_number ?? $shp->switching_stock_id }}</span>
+                                        @else
+                                            <span class="font-monospace fw-semibold text-slate-800 d-block">{{ $shp->order->order_number ?? '-' }}</span>
+                                            <small class="text-muted fs-8">Tgl Order: {{ $shp->order && $shp->order->order_date ? $shp->order->order_date->format('d/m/Y') : '-' }}</small>
+                                        @endif
                                     </td>
                                     <td>
-                                        <span class="fw-semibold text-slate-800 d-block">{{ $shp->order->requestingOrganization->name ?? '-' }}</span>
-                                        <small class="text-muted fs-8">{{ $shp->order->requestingOrganization->city ?? '-' }}</small>
+                                        <span class="fw-semibold text-slate-800 d-block">{{ $destName }}</span>
+                                        <small class="text-muted fs-8">{{ $destCity }}</small>
                                     </td>
                                     <td>
                                         <span class="fw-semibold text-slate-800 d-block">{{ $shp->courier->name ?? 'Kurir' }}</span>
                                         <span class="badge text-bg-light border text-slate-700 font-monospace fs-9">Resi: {{ $shp->tracking_number }}</span>
                                     </td>
                                     <td>
-                                        <span class="text-slate-800 fw-semibold d-block">{{ $shp->originWarehouse->name ?? 'Gudang Pusat' }}</span>
+                                        <span class="text-slate-800 fw-semibold d-block">{{ $originWarehouseName }}</span>
                                         <small class="text-muted fs-8">
                                             {{ $itemCount }} SKU &bull; {{ $totalQty }} unit ({{ $shp->total_weight_kg ?? 1 }} kg)
                                         </small>
@@ -283,25 +300,36 @@
                         <tbody>
                             @forelse($receivings as $rcv)
                                 @php
+                                    $isSwitching = (bool) $rcv->switching_stock_id;
                                     $hasDiscrepancy = $rcv->discrepancies->count() > 0 || $rcv->status === 'DISCREPANCY';
+                                    $destName = $rcv->order->requestingOrganization->name ?? ($rcv->switchingStock->destinationOrganization->name ?? ($rcv->destinationWarehouse->organization->name ?? '-'));
+                                    $destCity = $rcv->order->requestingOrganization->city ?? ($rcv->switchingStock->destinationOrganization->city ?? ($rcv->destinationWarehouse->organization->city ?? '-'));
                                     $rcvJson = [
                                         'id' => $rcv->id,
                                         'receiving_number' => $rcv->receiving_number,
                                         'manifest_number' => $rcv->shipment->manifest_number ?? '-',
                                         'tracking_number' => $rcv->shipment->tracking_number ?? '-',
-                                        'order_number' => $rcv->order->order_number ?? '-',
-                                        'branch_name' => $rcv->order->requestingOrganization->name ?? '-',
+                                        'order_number' => $isSwitching ? ('Switching #' . ($rcv->switchingStock->transfer_number ?? $rcv->switching_stock_id)) : ($rcv->order->order_number ?? '-'),
+                                        'branch_name' => $destName,
                                         'receiver_name' => $rcv->receiver->name ?? '-',
                                         'receipt_date' => $rcv->receipt_date ? $rcv->receipt_date->format('d M Y') : '-',
                                         'status' => $rcv->status,
                                         'notes' => $rcv->notes ?? '-',
-                                        'items' => $rcv->order ? $rcv->order->items->map(fn($it) => [
-                                            'name' => $it->item->name ?? 'Item',
-                                            'sku' => $it->item->sku ?? '-',
-                                            'category' => $it->item->category->name ?? '-',
-                                            'uom' => $it->item->uom ?? 'PCS',
-                                            'qty_ordered' => $it->qty_requested ?? $it->qty_approved ?? 0,
-                                        ])->values() : [],
+                                        'items' => $isSwitching 
+                                            ? ($rcv->switchingStock ? $rcv->switchingStock->items->map(fn($it) => [
+                                                'name' => $it->item->name ?? 'Item',
+                                                'sku' => $it->item->sku ?? '-',
+                                                'category' => $it->item->category->name ?? '-',
+                                                'uom' => $it->item->uom ?? 'PCS',
+                                                'qty_ordered' => $it->qty_requested ?? 0,
+                                            ])->values() : [])
+                                            : ($rcv->order ? $rcv->order->items->map(fn($it) => [
+                                                'name' => $it->item->name ?? 'Item',
+                                                'sku' => $it->item->sku ?? '-',
+                                                'category' => $it->item->category->name ?? '-',
+                                                'uom' => $it->item->uom ?? 'PCS',
+                                                'qty_ordered' => $it->qty_requested ?? $it->qty_approved ?? 0,
+                                            ])->values() : []),
                                         'discrepancies' => $rcv->discrepancies->map(fn($d) => [
                                             'item_name' => $d->item->name ?? '-',
                                             'type' => $d->discrepancy_type,
@@ -316,11 +344,15 @@
                                     </td>
                                     <td>
                                         <span class="font-monospace fw-semibold text-slate-800 d-block">{{ $rcv->shipment->manifest_number ?? '-' }}</span>
-                                        <small class="text-muted font-monospace fs-8">Order: {{ $rcv->order->order_number ?? '-' }}</small>
+                                        @if($isSwitching)
+                                            <span class="badge bg-info-subtle text-info font-monospace fs-9">SWITCHING #{{ $rcv->switchingStock->transfer_number ?? $rcv->switching_stock_id }}</span>
+                                        @else
+                                            <small class="text-muted font-monospace fs-8">Order: {{ $rcv->order->order_number ?? '-' }}</small>
+                                        @endif
                                     </td>
                                     <td>
-                                        <span class="fw-semibold text-slate-800 d-block">{{ $rcv->order->requestingOrganization->name ?? '-' }}</span>
-                                        <small class="text-muted fs-8">{{ $rcv->order->requestingOrganization->city ?? '-' }}</small>
+                                        <span class="fw-semibold text-slate-800 d-block">{{ $destName }}</span>
+                                        <small class="text-muted fs-8">{{ $destCity }}</small>
                                     </td>
                                     <td>
                                         <span class="text-slate-800 fw-semibold d-block">{{ $rcv->receiver->name ?? '-' }}</span>

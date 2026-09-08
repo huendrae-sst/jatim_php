@@ -461,8 +461,12 @@
 
                             <!-- Status -->
                             <td class="text-center">
-                                @if($sw->status === 'APPROVED' || $sw->status === 'COMPLETED')
+                                @if($sw->status === 'APPROVED' || $sw->status === 'COMPLETED' || $sw->status === 'RECEIVED')
                                     <span class="badge bg-success-subtle text-success-emphasis fs-9 py-1 px-2">
+                                        {{ $sw->status }}
+                                    </span>
+                                @elseif($sw->status === 'TRANSFERRED')
+                                    <span class="badge bg-info-subtle text-info-emphasis fs-9 py-1 px-2">
                                         {{ $sw->status }}
                                     </span>
                                 @elseif($sw->status === 'PROPOSED')
@@ -480,7 +484,7 @@
                                 @endif
                             </td>
 
-                            <!-- Aksi (View, Edit, Delete, Approve) -->
+                            <!-- Aksi (View, Edit, Delete, Approve, Dispatch, Receive) -->
                             <td class="pe-4 text-center">
                                 <div class="d-inline-flex align-items-center gap-1">
                                     <!-- View Button -->
@@ -507,6 +511,20 @@
                                                     <i class="bi bi-check-lg"></i>
                                                 </button>
                                             </form>
+                                        @endif
+                                    @elseif(in_array($sw->status, ['APPROVED', 'RESERVED']))
+                                        <a href="{{ route('distribution.shipments.index', ['switching_id' => $sw->id]) }}" class="btn btn-sm btn-outline-danger py-0.5 px-1.5 fs-9" title="Kirim via Distribusi & Ekspedisi (/distribution/shipments)">
+                                            <i class="bi bi-truck"></i>
+                                        </a>
+                                    @elseif($sw->status === 'TRANSFERRED')
+                                        @if($sw->shipment_id)
+                                            <a href="{{ route('receiving.confirm.form', $sw->shipment_id) }}" class="btn btn-sm btn-outline-success py-0.5 px-1.5 fs-9" title="Konfirmasi di Penerimaan Cabang (/receiving)">
+                                                <i class="bi bi-box-arrow-in-down"></i>
+                                            </a>
+                                        @else
+                                            <a href="{{ route('receiving.index') }}" class="btn btn-sm btn-outline-success py-0.5 px-1.5 fs-9" title="Penerimaan Cabang (/receiving)">
+                                                <i class="bi bi-box-arrow-in-down"></i>
+                                            </a>
                                         @endif
                                     @endif
                                 </div>
@@ -1053,7 +1071,19 @@
                     </div>
                 </template>
             </div>
-            <div class="card-footer bg-body-tertiary py-2 px-4 flex-shrink-0 text-end">
+            <div class="card-footer bg-body-tertiary py-2 px-4 flex-shrink-0 d-flex justify-content-between align-items-center">
+                <div>
+                    <template x-if="selectedSwitching && (selectedSwitching.status === 'APPROVED' || selectedSwitching.status === 'RESERVED')">
+                        <a :href="'{{ url('inventory/switching-stocks/approvals?switching_id=') }}' + selectedSwitching.id" class="btn btn-sm btn-primary">
+                            <i class="bi bi-truck me-1"></i> Proses Pengiriman Barang
+                        </a>
+                    </template>
+                    <template x-if="selectedSwitching && selectedSwitching.status === 'TRANSFERRED'">
+                        <a :href="'{{ url('inventory/switching-stocks/approvals?switching_id=') }}' + selectedSwitching.id" class="btn btn-sm btn-success">
+                            <i class="bi bi-box-seam me-1"></i> Konfirmasi Penerimaan Barang
+                        </a>
+                    </template>
+                </div>
                 <button type="button" @click="viewModalOpen = false" class="btn btn-sm btn-secondary">Tutup</button>
             </div>
         </div>

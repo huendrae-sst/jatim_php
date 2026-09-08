@@ -10,6 +10,8 @@ use App\Models\OrderAllocation;
 use App\Models\OrderItem;
 use App\Models\Receiving;
 use App\Models\Shipment;
+use App\Models\SwitchingStock;
+use App\Models\SwitchingStockItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehousePacking;
@@ -21,7 +23,8 @@ class OrderFulfillmentService
 {
     public function __construct(
         protected StockLedgerService $stockLedgerService,
-        protected SwitchingStockService $switchingStockService
+        protected SwitchingStockService $switchingStockService,
+        protected GeneralLedgerService $generalLedgerService
     ) {}
 
     public function createOrder(
@@ -374,9 +377,114 @@ class OrderFulfillmentService
         });
     }
 
+    public function createSwitchingShipment(
+        SwitchingStock $switching,
+        int $courierId,
+        string $serviceType,
+        string $trackingNumber,
+        float $shippingCost,
+        string $etaDate,
+        User $user,
+        int $koliCount = 1,
+        float $totalWeightKg = 1.0,
+        ?string $notes = null
+    ): Shipment {
+        if (! in_array($switching->status, ['APPROVED', 'RESERVED'], true)) {
+            throw new Exception('Hanya switching stock dengan status APPROVED atau RESERVED yang dapat dikirim melalui distribusi.');
+        }
+
+        return DB::transaction(function () use ($switching, $courierId, $serviceType, $trackingNumber, $shippingCost, $etaDate, $user, $koliCount, $totalWeightKg, $notes) {
+            $manifestNumber = 'MNF/'.date('Y/m').'/'.sprintf('%04d', Shipment::count() + 1);
+
+            $shipment = Shipment::create([
+                'manifest_number' => $manifestNumber,
+                'order_id' => $switching->order_id,
+                'switching_stock_id' => $switching->id,
+                'origin_warehouse_id' => $switching->source_warehouse_id,
+                'destination_organization_id' => $switching->destination_organization_id,
+                'courier_id' => $courierId,
+                'service_type' => $serviceType,
+                'tracking_number' => $trackingNumber,
+                'dispatched_by_user_id' => $user->id,
+                'koli_count' => $koliCount,
+                'total_weight_kg' => $totalWeightKg,
+                'shipping_cost' => $shippingCost,
+                'eta_date' => $etaDate,
+                'status' => 'IN_TRANSIT',
+                'dispatched_at' => now(),
+            ]);
+
+            // Update switching stock
+            $switching->shipment_id = $shipment->id;
+            $switching->status = 'TRANSFERRED';
+            $switching->transferred_by_user_id = $user->id;
+            $switching->transferred_at = now();
+            $switching->tracking_number = $trackingNumber;
+            $switching->transfer_notes = $notes;
+            $switching->save();
+
+            // Mutate stock out from source warehouse & deduct reserved
+            $switching->loadMissing('items.item', 'sourceWarehouse', 'destinationWarehouse', 'item', 'destinationOrganization');
+            $refNo = $manifestNumber;
+
+            if ($switching->items->isNotEmpty()) {
+                foreach ($switching->items as $itemRow) {
+                    $this->stockLedgerService->dispatchSwitchingTransfer(
+                        $switching->sourceWarehouse,
+                        $itemRow->item,
+                        $itemRow->qty_requested,
+                        $refNo,
+                        $user
+                    );
+                }
+            } elseif ($switching->item && $switching->qty_requested) {
+                $this->stockLedgerService->dispatchSwitchingTransfer(
+                    $switching->sourceWarehouse,
+                    $switching->item,
+                    $switching->qty_requested,
+                    $refNo,
+                    $user
+                );
+            }
+
+            // Record balanced General Ledger journal for inter-branch transfer
+            $this->generalLedgerService->recordSwitchingDispatchJournal($switching, $shipment, $user);
+
+            AuditTrailService::log('DISPATCH_SWITCHING_SHIPMENT', $shipment, null, $shipment->toArray(), $user);
+
+            $courierName = $shipment->courier ? $shipment->courier->name : 'Ekspedisi';
+            $destName = $switching->destinationOrganization?->name ?? 'Cabang Tujuan';
+
+            NotificationService::sendActionRequired(
+                "Konfirmasi Penerimaan Switching Stock {$manifestNumber}",
+                "Pengiriman transfer switching stock via {$courierName} (Resi: {$trackingNumber}) dari {$switching->sourceWarehouse->name} menuju unit Anda. Mohon lakukan konfirmasi penerimaan fisik saat barang tiba.",
+                'RECEIVING_OFFICER',
+                $switching->destination_organization_id,
+                'SHIPMENT',
+                $shipment->id,
+                "/receiving/confirm/{$shipment->id}"
+            );
+
+            if ($switching->proposed_by_user_id && $switching->proposed_by_user_id !== $user->id) {
+                NotificationService::sendUser(
+                    $switching->proposed_by_user_id,
+                    'Switching Stock Dikirim',
+                    "Pengiriman switching stock ({$manifestNumber}) telah diberangkatkan menuju {$destName}. No Resi: {$trackingNumber}.",
+                    'INFORMATION',
+                    'INFO',
+                    'SHIPMENT',
+                    $shipment->id,
+                    "/distribution/shipments/{$shipment->id}"
+                );
+            }
+
+            return $shipment;
+        });
+    }
+
     public function processReceiving(
         Shipment $shipment,
-        array $receivedItemsData, // [ ['order_item_id' => 1, 'qty_good' => 50, 'qty_damaged' => 0, 'qty_missing' => 0], ... ]
+        array $receivedItemsData,
         string $podSignature,
         ?string $notes,
         User $user
@@ -384,15 +492,26 @@ class OrderFulfillmentService
         return DB::transaction(function () use ($shipment, $receivedItemsData, $podSignature, $notes, $user) {
             $rcvNumber = 'RCV/'.date('Y/m').'/'.sprintf('%04d', Receiving::count() + 1);
             $order = $shipment->order;
-            $destWarehouse = $order->requestingWarehouse ?: Warehouse::where('organization_id', $order->requesting_organization_id)->firstOrFail();
+            $switching = $shipment->switchingStock;
+
+            $destOrgId = $shipment->destination_organization_id ?: ($order ? $order->requesting_organization_id : null);
+            $destWarehouse = null;
+            if ($switching && $switching->destinationWarehouse) {
+                $destWarehouse = $switching->destinationWarehouse;
+            } elseif ($order && $order->requestingWarehouse) {
+                $destWarehouse = $order->requestingWarehouse;
+            } else {
+                $destWarehouse = Warehouse::where('organization_id', $destOrgId)->firstOrFail();
+            }
 
             $hasDiscrepancy = false;
 
             $receiving = Receiving::create([
                 'receiving_number' => $rcvNumber,
                 'shipment_id' => $shipment->id,
-                'order_id' => $order->id,
-                'organization_id' => $order->requesting_organization_id,
+                'order_id' => $order?->id,
+                'switching_stock_id' => $switching?->id,
+                'organization_id' => $destOrgId,
                 'warehouse_id' => $destWarehouse->id,
                 'received_by_user_id' => $user->id,
                 'receipt_date' => now(),
@@ -401,91 +520,196 @@ class OrderFulfillmentService
                 'notes' => $notes,
             ]);
 
+            $swReceiptItems = [];
+
             foreach ($receivedItemsData as $itemData) {
-                $orderItem = OrderItem::findOrFail($itemData['order_item_id']);
-                $qtyGood = (int) $itemData['qty_good'];
+                $qtyGood = (int) ($itemData['qty_good'] ?? 0);
                 $qtyDamaged = (int) ($itemData['qty_damaged'] ?? 0);
                 $qtyMissing = (int) ($itemData['qty_missing'] ?? 0);
 
-                $orderItem->qty_received = $qtyGood;
-                $orderItem->save();
+                if (! empty($itemData['switching_stock_item_id'])) {
+                    $swItem = SwitchingStockItem::with('item')->findOrFail($itemData['switching_stock_item_id']);
+                    $itemModel = $swItem->item;
+                    $qtyExpected = $swItem->qty_requested;
 
-                if ($qtyDamaged > 0 || $qtyMissing > 0) {
-                    $hasDiscrepancy = true;
-                    Discrepancy::create([
-                        'receiving_id' => $receiving->id,
-                        'order_item_id' => $orderItem->id,
-                        'item_id' => $orderItem->item_id,
-                        'discrepancy_type' => $qtyDamaged > 0 ? 'DAMAGED' : 'MISSING',
-                        'qty_expected' => $orderItem->qty_shipped,
-                        'qty_actual' => $qtyGood,
+                    if ($qtyDamaged > 0 || $qtyMissing > 0) {
+                        $hasDiscrepancy = true;
+                        if ($qtyDamaged > 0) {
+                            Discrepancy::create([
+                                'receiving_id' => $receiving->id,
+                                'switching_stock_item_id' => $swItem->id,
+                                'item_id' => $itemModel->id,
+                                'discrepancy_type' => 'DAMAGED',
+                                'qty_expected' => $qtyExpected,
+                                'qty_actual' => $qtyGood,
+                                'qty_damaged' => $qtyDamaged,
+                                'resolution_status' => 'REPORTED',
+                                'resolution_notes' => "Ditemukan {$qtyDamaged} barang rusak pada penerimaan switching stock.",
+                            ]);
+                        }
+                        if ($qtyMissing > 0) {
+                            Discrepancy::create([
+                                'receiving_id' => $receiving->id,
+                                'switching_stock_item_id' => $swItem->id,
+                                'item_id' => $itemModel->id,
+                                'discrepancy_type' => 'MISSING',
+                                'qty_expected' => $qtyExpected,
+                                'qty_actual' => $qtyGood,
+                                'qty_damaged' => $qtyMissing,
+                                'resolution_status' => 'REPORTED',
+                                'resolution_notes' => "Ditemukan {$qtyMissing} barang kurang pada penerimaan switching stock.",
+                            ]);
+                        }
+                    }
+
+                    $this->stockLedgerService->receiveSwitchingTransfer(
+                        $destWarehouse,
+                        $itemModel,
+                        $qtyGood,
+                        $qtyDamaged,
+                        $rcvNumber,
+                        $user
+                    );
+
+                    $swReceiptItems[] = [
+                        'item' => $itemModel,
+                        'qty_good' => $qtyGood,
                         'qty_damaged' => $qtyDamaged,
-                        'resolution_status' => 'REPORTED',
-                        'resolution_notes' => "Ditemukan {$qtyDamaged} rusak dan {$qtyMissing} kurang pada penerimaan.",
-                    ]);
-                }
+                    ];
+                } elseif (! empty($itemData['order_item_id'])) {
+                    $orderItem = OrderItem::with('item')->findOrFail($itemData['order_item_id']);
+                    $orderItem->qty_received = $qtyGood;
+                    $orderItem->save();
 
-                // Add stock to destination warehouse
-                $this->stockLedgerService->receiveBranchStock(
-                    $destWarehouse,
-                    $orderItem->item,
-                    $qtyGood,
-                    $qtyDamaged,
-                    $rcvNumber,
-                    $user
-                );
+                    if ($qtyDamaged > 0 || $qtyMissing > 0) {
+                        $hasDiscrepancy = true;
+                        if ($qtyDamaged > 0) {
+                            Discrepancy::create([
+                                'receiving_id' => $receiving->id,
+                                'order_item_id' => $orderItem->id,
+                                'item_id' => $orderItem->item_id,
+                                'discrepancy_type' => 'DAMAGED',
+                                'qty_expected' => $orderItem->qty_shipped,
+                                'qty_actual' => $qtyGood,
+                                'qty_damaged' => $qtyDamaged,
+                                'resolution_status' => 'REPORTED',
+                                'resolution_notes' => "Ditemukan {$qtyDamaged} barang rusak pada penerimaan.",
+                            ]);
+                        }
+                        if ($qtyMissing > 0) {
+                            Discrepancy::create([
+                                'receiving_id' => $receiving->id,
+                                'order_item_id' => $orderItem->id,
+                                'item_id' => $orderItem->item_id,
+                                'discrepancy_type' => 'MISSING',
+                                'qty_expected' => $orderItem->qty_shipped,
+                                'qty_actual' => $qtyGood,
+                                'qty_damaged' => $qtyMissing,
+                                'resolution_status' => 'REPORTED',
+                                'resolution_notes' => "Ditemukan {$qtyMissing} barang kurang pada penerimaan.",
+                            ]);
+                        }
+                    }
+
+                    $this->stockLedgerService->receiveBranchStock(
+                        $destWarehouse,
+                        $orderItem->item,
+                        $qtyGood,
+                        $qtyDamaged,
+                        $rcvNumber,
+                        $user
+                    );
+                }
+            }
+
+            if (! empty($swReceiptItems)) {
+                $sw = $shipment->switchingStock ?: SwitchingStock::find($shipment->switching_stock_id);
+                if ($sw) {
+                    $this->generalLedgerService->recordSwitchingReceiptJournal($sw, $receiving, $user, $swReceiptItems);
+                }
+            }
+
+            if ($hasDiscrepancy) {
+                $receiving->status = 'DISCREPANCY';
+                $receiving->save();
             }
 
             $shipment->status = 'DELIVERED';
             $shipment->delivered_at = now();
             $shipment->save();
 
-            $order->status = 'RECEIVED';
-            $order->save();
+            if ($order) {
+                $order->status = 'RECEIVED';
+                $order->save();
+            }
+
+            if ($switching) {
+                $switching->status = 'COMPLETED';
+                $switching->received_by_user_id = $user->id;
+                $switching->received_at = now();
+                $switching->receipt_notes = $notes;
+                $switching->save();
+            }
 
             AuditTrailService::log('RECEIVE_SHIPMENT', $receiving, null, $receiving->toArray(), $user);
 
-            NotificationService::sendUser(
-                $order->created_by_user_id,
-                "Barang Order {$order->order_number} Telah Diterima",
-                "Penerimaan barang telah dikonfirmasi di {$order->requestingOrganization->name} (No Bukti: {$receiving->receiving_number}). Stok unit Anda telah bertambah.",
-                'INFORMATION',
-                'INFO',
-                'RECEIVING',
-                $receiving->id,
-                "/orders/{$order->id}"
-            );
-
-            NotificationService::sendActionRequired(
-                "Settlement Diperlukan untuk Order {$order->order_number}",
-                "Order {$order->order_number} telah selesai diterima di {$order->requestingOrganization->name}. Silakan buat dan proses settlement finansial antarunit.",
-                'FINANCE_OFFICER',
-                null,
-                'ORDER',
-                $order->id,
-                '/finance/settlements'
-            );
-
-            if ($hasDiscrepancy) {
-                $receiving->status = 'DISCREPANCY';
-                $receiving->save();
-
-                NotificationService::sendAlert(
-                    "Laporan Discrepancy Penerimaan {$rcvNumber}",
-                    "Terdapat selisih/kerusakan barang pada penerimaan order {$order->order_number} di unit {$order->requestingOrganization->name}.",
-                    'HIGH',
-                    'DISTRIBUTION_OFFICER',
-                    null,
+            if ($order) {
+                NotificationService::sendUser(
+                    $order->created_by_user_id,
+                    "Barang Order {$order->order_number} Telah Diterima",
+                    "Penerimaan barang telah dikonfirmasi di {$destWarehouse->name} (No Bukti: {$receiving->receiving_number}). Stok unit Anda telah bertambah.",
+                    'INFORMATION',
+                    'INFO',
                     'RECEIVING',
                     $receiving->id,
-                    '/receiving/discrepancies'
+                    "/orders/{$order->id}"
                 );
 
-                NotificationService::sendAlert(
-                    "Discrepancy Penerimaan Order {$order->order_number}",
-                    "Terdapat barang rusak/kurang pada penerimaan order {$order->order_number}. Silakan periksa daftar discrepancy.",
-                    'HIGH',
+                NotificationService::sendActionRequired(
+                    "Settlement Diperlukan untuk Order {$order->order_number}",
+                    "Order {$order->order_number} telah selesai diterima di {$destWarehouse->name}. Silakan buat dan proses settlement finansial antarunit.",
+                    'FINANCE_OFFICER',
+                    null,
+                    'ORDER',
+                    $order->id,
+                    '/finance/settlements'
+                );
+            }
+
+            if ($switching) {
+                if ($switching->proposed_by_user_id) {
+                    NotificationService::sendUser(
+                        $switching->proposed_by_user_id,
+                        "Switching Stock {$shipment->manifest_number} Telah Selesai Diterima",
+                        "Barang switching stock telah diterima oleh {$user->name} di {$destWarehouse->name} (No Bukti: {$receiving->receiving_number}). Transaksi selesai.",
+                        'INFORMATION',
+                        'INFO',
+                        'RECEIVING',
+                        $receiving->id,
+                        '/receiving?tab=history'
+                    );
+                }
+
+                NotificationService::sendRole(
                     'WAREHOUSE_OFFICER',
+                    'Switching Stock Selesai Diterima',
+                    "Barang switching stock manifest {$shipment->manifest_number} telah selesai diterima di {$destWarehouse->name}.",
+                    $switching->source_organization_id,
+                    'INFORMATION',
+                    'INFO',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    '/receiving?tab=history'
+                );
+            }
+
+            if ($hasDiscrepancy) {
+                $refDesc = $order ? "order {$order->order_number}" : "switching stock manifest {$shipment->manifest_number}";
+                NotificationService::sendAlert(
+                    "Laporan Discrepancy Penerimaan {$rcvNumber}",
+                    "Terdapat selisih/kerusakan barang pada penerimaan {$refDesc} di unit {$destWarehouse->name}.",
+                    'HIGH',
+                    'DISTRIBUTION_OFFICER',
                     null,
                     'RECEIVING',
                     $receiving->id,

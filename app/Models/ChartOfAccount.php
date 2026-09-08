@@ -27,6 +27,11 @@ class ChartOfAccount extends Model
         return $this->hasMany(ChartOfAccount::class, 'parent_id');
     }
 
+    public function generalLedgerEntries(): HasMany
+    {
+        return $this->hasMany(GeneralLedgerEntry::class);
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);

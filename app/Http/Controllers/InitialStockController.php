@@ -7,6 +7,7 @@ use App\Models\Item;
 use App\Models\StockLedger;
 use App\Models\Warehouse;
 use App\Services\AuditTrailService;
+use App\Services\GeneralLedgerService;
 use App\Services\StockLedgerService;
 use Carbon\Carbon;
 use Exception;
@@ -18,7 +19,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class InitialStockController extends Controller
 {
     public function __construct(
-        protected StockLedgerService $stockLedgerService
+        protected StockLedgerService $stockLedgerService,
+        protected GeneralLedgerService $generalLedgerService
     ) {}
 
     public function index(Request $request)
@@ -82,6 +84,7 @@ class InitialStockController extends Controller
 
             $postedCount = 0;
             $totalValuation = 0;
+            $postedItems = [];
 
             foreach ($request->items as $row) {
                 $item = Item::findOrFail($row['item_id']);
@@ -101,9 +104,27 @@ class InitialStockController extends Controller
                         $user
                     );
 
+                    $postedItems[] = [
+                        'item' => $item,
+                        'qty_good' => $qtyGood,
+                        'qty_damaged' => $qtyDamaged,
+                        'unit_cost' => $unitCost,
+                    ];
+
                     $postedCount++;
                     $totalValuation += $ledger->total_value;
                 }
+            }
+
+            // Post double-entry balanced journal to General Ledger
+            if (! empty($postedItems)) {
+                $this->generalLedgerService->recordInitialStockBatchJournal(
+                    $warehouse,
+                    $postedItems,
+                    $refNo,
+                    $user,
+                    $cutoffDate
+                );
             }
 
             AuditTrailService::log(
@@ -276,6 +297,17 @@ class InitialStockController extends Controller
                         $postedCount++;
                         $totalValuation += $ledger->total_value;
                     }
+                }
+
+                // Post double-entry balanced journal to General Ledger
+                if (! empty($rows)) {
+                    $this->generalLedgerService->recordInitialStockBatchJournal(
+                        $warehouse,
+                        $rows,
+                        $refNo,
+                        $user,
+                        $cutoffDate
+                    );
                 }
 
                 AuditTrailService::log(

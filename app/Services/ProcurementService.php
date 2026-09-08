@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\DB;
 class ProcurementService
 {
     public function __construct(
-        protected StockLedgerService $stockLedgerService
+        protected StockLedgerService $stockLedgerService,
+        protected GeneralLedgerService $generalLedgerService
     ) {}
 
     public function createPurchaseRequest(
@@ -431,6 +432,9 @@ class ProcurementService
 
             $po->status = $allCompleted ? 'COMPLETED' : 'PARTIAL_RECEIVED';
             $po->save();
+
+            // Record double-entry General Ledger journal
+            $this->generalLedgerService->recordGoodsReceiptJournal($grn, $user);
 
             AuditTrailService::log('RECEIVE_VENDOR_GOODS', $grn, null, ['grn_number' => $grn->grn_number, 'po' => $po->po_number], $user);
 

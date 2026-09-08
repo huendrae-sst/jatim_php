@@ -18,8 +18,8 @@
                 subtext="Pagu: Rp {{ number_format($branchBudgetPagu / 1000000, 1) }}M (Serapan {{ $branchBudgetUtilization }}%)"
                 icon="bi-pie-chart-fill"
                 color="warning"
-                :link="route('master.budgets')"
-                linkText="Detail Pagu Cabang"
+                :link="auth()->user()->canAccessModule('master_budgets') ? route('master.budgets') : null"
+                :linkText="auth()->user()->canAccessModule('master_budgets') ? 'Detail Pagu Cabang' : null"
             />
 
             <x-kpi-card 
@@ -28,8 +28,8 @@
                 subtext="{{ $branchPendingOrders }} Menunggu Persetujuan"
                 icon="bi-cart-check-fill"
                 color="success"
-                :link="route('orders.index')"
-                linkText="Daftar Order Cabang"
+                :link="auth()->user()->canAccessModule('orders') ? route('orders.index') : null"
+                :linkText="auth()->user()->canAccessModule('orders') ? 'Daftar Order Cabang' : null"
             />
 
             <x-kpi-card 
@@ -38,8 +38,8 @@
                 subtext="{{ $branchDelivered }} Paket Sukses Diterima"
                 icon="bi-truck"
                 color="info"
-                :link="route('receiving.index')"
-                linkText="Penerimaan Barang Cabang"
+                :link="auth()->user()->canAccessModule('receiving_branch') || auth()->user()->canAccessModule('receiving') ? route('receiving.index') : null"
+                :linkText="auth()->user()->canAccessModule('receiving_branch') || auth()->user()->canAccessModule('receiving') ? 'Penerimaan Barang Cabang' : null"
             />
 
             <x-kpi-card 
@@ -48,8 +48,8 @@
                 subtext="Valuasi: Rp {{ number_format($branchStockValuation / 1000000, 1) }}M ({{ $branchSkuCount }} SKU)"
                 icon="bi-box-seam"
                 color="danger"
-                :link="route('inventory.balances')"
-                linkText="Stok Gudang Cabang"
+                :link="auth()->user()->canAccessModule('inventory') ? route('inventory.balances') : null"
+                :linkText="auth()->user()->canAccessModule('inventory') ? 'Stok Gudang Cabang' : null"
             />
         @else
             <x-kpi-card 
@@ -58,8 +58,8 @@
                 subtext="Bebas: Rp {{ number_format($availableStockValue / 1000000, 1) }}M"
                 icon="bi-currency-dollar"
                 color="danger"
-                :link="route('inventory.balances')"
-                linkText="Rincian Stock Balances"
+                :link="auth()->user()->canAccessModule('inventory') ? route('inventory.balances') : null"
+                :linkText="auth()->user()->canAccessModule('inventory') ? 'Rincian Stock Balances' : null"
             />
 
             <x-kpi-card 
@@ -68,8 +68,8 @@
                 subtext="Realisasi: Rp {{ number_format($totalBudgetRealized / 1000000, 0) }} jt"
                 icon="bi-pie-chart-fill"
                 color="warning"
-                :link="route('master.budgets')"
-                linkText="Lihat Pagu Cabang"
+                :link="auth()->user()->canAccessModule('master_budgets') ? route('master.budgets') : null"
+                :linkText="auth()->user()->canAccessModule('master_budgets') ? 'Lihat Pagu Cabang' : null"
             />
 
             <x-kpi-card 
@@ -78,8 +78,8 @@
                 subtext="{{ $deliveredCount }} Paket Sukses Diterima"
                 icon="bi-truck"
                 color="info"
-                :link="route('distribution.shipments.index')"
-                linkText="Monitoring Manifest"
+                :link="auth()->user()->canAccessModule('distribution') ? route('distribution.shipments.index') : null"
+                :linkText="auth()->user()->canAccessModule('distribution') ? 'Monitoring Manifest' : null"
             />
 
             <x-kpi-card 
@@ -88,8 +88,8 @@
                 subtext="{{ $pendingOrderApprovals }} Butuh Persetujuan"
                 icon="bi-cart-check-fill"
                 color="success"
-                :link="route('orders.index')"
-                linkText="Daftar Semua Pesanan"
+                :link="auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('order_approvals') ? route('orders.index') : null"
+                :linkText="auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('order_approvals') ? 'Daftar Semua Pesanan' : null"
             />
         @endif
     </div>
@@ -124,172 +124,23 @@
         </div>
     @endif
 
-    <!-- Operational Action Center (Adaptive Info-Boxes) -->
-    <div class="row g-2 g-sm-3">
-        @if($isBranch)
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('orders.create') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-danger"><i class="bi bi-plus-circle"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Order Baru</span>
-                            <span class="info-box-number fs-7 text-danger fw-bold">Buat Order</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('orders.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-warning"><i class="bi bi-clock-history"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Order Pending</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $branchPendingOrders }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            @if($user->canAccessModule('order_approvals'))
-                <div class="col-6 col-md-4 col-xl-2">
-                    <a href="{{ route('orders.approvals') }}" class="text-decoration-none">
-                        <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                            <span class="info-box-icon text-bg-primary"><i class="bi bi-check2-circle"></i></span>
-                            <div class="info-box-content">
-                                <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Persetujuan</span>
-                                <span class="info-box-number fs-6 text-body-emphasis">{{ $branchPendingOrders }}</span>
-                            </div>
-                        </div>
-                    </a>
-                </div>
-            @endif
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('receiving.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-info"><i class="bi bi-truck"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Penerimaan</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $branchInTransit }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('receiving.discrepancies') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-danger"><i class="bi bi-exclamation-octagon"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Selisih QC</span>
-                            <span class="info-box-number fs-6 text-danger">{{ $discrepancyReports }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('inventory.balances') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-success"><i class="bi bi-box-seam"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Stok Cabang</span>
-                            <span class="info-box-number fs-6 text-success">{{ $branchSkuCount }} SKU</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        @else
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('procurement.pr.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-warning"><i class="bi bi-clock-history"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">PR Pending</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $pendingPrCount }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('procurement.consolidation.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-primary"><i class="bi bi-collection"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">PR Pool (PO)</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $approvedPrPoolCount }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('orders.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-danger"><i class="bi bi-cart3"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Order Cabang</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $pendingOrderApprovals }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('warehouse.picking.queue') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-secondary"><i class="bi bi-boxes"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Gudang Pick/Pack</span>
-                            <span class="info-box-number fs-6 text-body-emphasis">{{ $allocatedOrders + $readyToShipOrders }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('receiving.discrepancies') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-danger"><i class="bi bi-exclamation-octagon"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Discrepancy</span>
-                            <span class="info-box-number fs-6 text-danger">{{ $discrepancyReports }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-6 col-md-4 col-xl-2">
-                <a href="{{ route('finance.settlements.index') }}" class="text-decoration-none">
-                    <div class="info-box shadow-xs mb-0 h-100 hover:shadow transition bg-body">
-                        <span class="info-box-icon text-bg-success"><i class="bi bi-journal-check"></i></span>
-                        <div class="info-box-content">
-                            <span class="info-box-text fs-8 text-secondary fw-bold text-uppercase">Settlement</span>
-                            <span class="info-box-number fs-6 text-success">{{ $pendingSettlements }}</span>
-                        </div>
-                    </div>
-                </a>
-            </div>
-        @endif
-    </div>
-
-    <!-- Charts Row -->
-    <div class="row g-3">
+    <!-- Analytics & Charts Grid (Unified 2x2 Layout) -->
+    <div class="row g-3 mb-4">
         <!-- Chart 1: Category Valuation -->
-        <div class="col-12 col-lg-5">
+        <div class="col-12 col-lg-6">
             <div class="card card-outline card-danger shadow-xs h-100">
-                <div class="card-header border-bottom">
-                    <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                        Valuasi per Kategori Barang
-                    </h3>
+                <div class="card-header border-bottom py-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center gap-2">
+                            <i class="bi bi-pie-chart-fill text-danger"></i> Valuasi per Kategori Barang
+                        </h3>
+                    </div>
                     <div class="card-tools">
                         <span class="badge text-bg-danger-subtle text-danger border border-danger-subtle fs-8">Aktif</span>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="position-relative" style="height: 260px;">
+                    <div class="position-relative" style="height: 270px;">
                         <canvas id="categoryChart"></canvas>
                     </div>
                 </div>
@@ -297,19 +148,63 @@
         </div>
 
         <!-- Chart 2: Pagu vs Realisasi per Unit Kerja -->
-        <div class="col-12 col-lg-7">
+        <div class="col-12 col-lg-6">
             <div class="card card-outline card-warning shadow-xs h-100">
-                <div class="card-header border-bottom">
-                    <h3 class="card-title fs-6 fw-bold mb-0 text-body">
-                        Serapan Pagu Anggaran per Cabang
-                    </h3>
+                <div class="card-header border-bottom py-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center gap-2">
+                            <i class="bi bi-cash-stack text-warning"></i> Serapan Pagu Anggaran per Cabang
+                        </h3>
+                    </div>
                     <div class="card-tools">
                         <span class="badge text-bg-warning-subtle text-warning-emphasis border border-warning-subtle fs-8">TA 2026</span>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="position-relative" style="height: 260px;">
+                    <div class="position-relative" style="height: 270px;">
                         <canvas id="budgetChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 3: Stock Movement In vs Out Velocity -->
+        <div class="col-12 col-lg-6">
+            <div class="card card-outline card-primary shadow-xs h-100">
+                <div class="card-header border-bottom py-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center gap-2">
+                            <i class="bi bi-graph-up-arrow text-primary"></i> Tren Arus Masuk vs Keluar Barang
+                        </h3>
+                    </div>
+                    <div class="card-tools">
+                        <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle fs-8">6 Bulan Terakhir</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 270px;">
+                        <canvas id="movementChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 4: Top 5 Fast-Moving Items -->
+        <div class="col-12 col-lg-6">
+            <div class="card card-outline card-success shadow-xs h-100">
+                <div class="card-header border-bottom py-2 d-flex align-items-center justify-content-between">
+                    <div>
+                        <h3 class="card-title fs-6 fw-bold mb-0 text-body d-flex align-items-center gap-2">
+                            <i class="bi bi-trophy-fill text-success"></i> Top 5 Barang Paling Banyak Bergerak
+                        </h3>
+                    </div>
+                    <div class="card-tools">
+                        <span class="badge text-bg-success-subtle text-success border border-success-subtle fs-8">Fast-Moving</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative" style="height: 270px;">
+                        <canvas id="fastMovingChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -317,6 +212,7 @@
     </div>
 
     <!-- Recent Orders Table (Reusable & Mobile-First) -->
+    @if(auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('order_approvals'))
     <x-card :title="$isBranch ? 'Histori Permintaan Order ' . ($user->organization->name ?? 'Cabang') : 'Histori Permintaan Order Terakhir'" icon="bi bi-clock-history" :noPadding="true">
         <x-slot:actions>
             <a href="{{ route('orders.index') }}" class="btn btn-sm btn-outline-danger fs-8 fw-semibold">
@@ -364,6 +260,7 @@
             </tbody>
         </x-table>
     </x-card>
+    @endif
 
 </div>
 @endsection
@@ -375,7 +272,10 @@
         const getTextColor = () => isDark() ? '#94a3b8' : '#64748b';
         const getGridColor = () => isDark() ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
 
-        // 1. Category Chart
+        // Helper function for Rupiah formatting
+        const formatRupiah = (val) => 'Rp ' + Number(val).toLocaleString('id-ID');
+
+        // 1. Category Chart (Doughnut)
         const catData = {{ Js::from($categoryValuations) }};
         const ctxCat = document.getElementById('categoryChart').getContext('2d');
         const categoryChart = new Chart(ctxCat, {
@@ -390,6 +290,7 @@
                         '#4F46E5', // Indigo
                         '#10B981', // Emerald
                         '#0EA5E9', // Sky
+                        '#8B5CF6', // Purple
                     ],
                     borderWidth: 2,
                     borderColor: isDark() ? '#1a1d21' : '#ffffff'
@@ -403,10 +304,24 @@
                     legend: { 
                         position: 'bottom', 
                         labels: { 
-                            boxWidth: 10, 
-                            font: { size: 11 },
-                            color: getTextColor()
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: { size: 11, family: 'system-ui, sans-serif' },
+                            color: getTextColor(),
+                            padding: 12
                         } 
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const val = context.parsed;
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : 0;
+                                return ` ${context.label}: ${formatRupiah(val)} (${pct}%)`;
+                            }
+                        }
                     }
                 }
             }
@@ -443,14 +358,26 @@
                     legend: { 
                         position: 'bottom', 
                         labels: { 
-                            boxWidth: 10, 
-                            font: { size: 11 },
-                            color: getTextColor()
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: { size: 11, family: 'system-ui, sans-serif' },
+                            color: getTextColor(),
+                            padding: 12
                         } 
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.dataset.label}: ${formatRupiah(context.parsed.y)}`;
+                            }
+                        }
                     }
                 },
                 scales: {
                     y: {
+                        beginAtZero: true,
                         grid: { color: getGridColor() },
                         ticks: {
                             color: getTextColor(),
@@ -461,6 +388,153 @@
                         }
                     },
                     x: {
+                        grid: { display: false },
+                        ticks: { 
+                            color: getTextColor(),
+                            font: { size: 10, weight: 'bold' } 
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Movement Chart (Line with area fill)
+        const movementData = {{ Js::from($monthlyMovements) }};
+        const ctxMovement = document.getElementById('movementChart').getContext('2d');
+        const movementChart = new Chart(ctxMovement, {
+            type: 'line',
+            data: {
+                labels: movementData.map(m => m.month),
+                datasets: [
+                    {
+                        label: 'Barang Masuk (Inbound)',
+                        data: movementData.map(m => m.in),
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                    {
+                        label: 'Barang Keluar (Outbound)',
+                        data: movementData.map(m => m.out),
+                        borderColor: '#D9252A',
+                        backgroundColor: 'rgba(217, 37, 42, 0.12)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    legend: { 
+                        position: 'bottom', 
+                        labels: { 
+                            boxWidth: 8,
+                            boxHeight: 8,
+                            usePointStyle: true,
+                            pointStyle: 'circle',
+                            font: { size: 11, family: 'system-ui, sans-serif' },
+                            color: getTextColor(),
+                            padding: 12
+                        } 
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return ` ${context.dataset.label}: ${context.parsed.y.toLocaleString('id-ID')} unit`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: getGridColor() },
+                        ticks: {
+                            color: getTextColor(),
+                            callback: function(value) {
+                                return value.toLocaleString('id-ID');
+                            },
+                            font: { size: 10 }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { 
+                            color: getTextColor(),
+                            font: { size: 10, weight: 'bold' } 
+                        }
+                    }
+                }
+            }
+        });
+
+        // 4. Top 5 Fast-Moving Items (Horizontal Bar Chart)
+        const fastMovingData = {{ Js::from($topFastMoving) }};
+        const ctxFastMoving = document.getElementById('fastMovingChart').getContext('2d');
+        const fastMovingChart = new Chart(ctxFastMoving, {
+            type: 'bar',
+            data: {
+                labels: fastMovingData.map(f => f.name),
+                datasets: [{
+                    label: 'Total Kuantitas',
+                    data: fastMovingData.map(f => f.qty),
+                    backgroundColor: [
+                        '#0284C7',
+                        '#0EA5E9',
+                        '#38BDF8',
+                        '#7DD3FC',
+                        '#BAE6FD',
+                    ],
+                    borderRadius: 6,
+                    barThickness: 16,
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const item = fastMovingData[context.dataIndex];
+                                const uom = item && item.uom ? ' ' + item.uom : ' unit';
+                                return ` Jumlah Keluar: ${context.parsed.x.toLocaleString('id-ID')}${uom}`;
+                            },
+                            afterLabel: function(context) {
+                                const item = fastMovingData[context.dataIndex];
+                                return item && item.sku ? `SKU: ${item.sku}` : '';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { color: getGridColor() },
+                        ticks: {
+                            color: getTextColor(),
+                            callback: function(value) {
+                                return value.toLocaleString('id-ID');
+                            },
+                            font: { size: 10 }
+                        }
+                    },
+                    y: {
                         grid: { display: false },
                         ticks: { 
                             color: getTextColor(),
@@ -489,6 +563,19 @@
             budgetChart.options.scales.y.grid.color = gridColor;
             budgetChart.options.scales.x.ticks.color = textColor;
             budgetChart.update();
+
+            // Update Movement Chart
+            movementChart.options.plugins.legend.labels.color = textColor;
+            movementChart.options.scales.y.ticks.color = textColor;
+            movementChart.options.scales.y.grid.color = gridColor;
+            movementChart.options.scales.x.ticks.color = textColor;
+            movementChart.update();
+
+            // Update Fast Moving Chart
+            fastMovingChart.options.scales.x.ticks.color = textColor;
+            fastMovingChart.options.scales.x.grid.color = gridColor;
+            fastMovingChart.options.scales.y.ticks.color = textColor;
+            fastMovingChart.update();
         });
 
         observer.observe(document.documentElement, {

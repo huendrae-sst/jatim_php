@@ -36,13 +36,29 @@ class ReceivingController extends Controller
         $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
 
         // Query Incoming In-Transit Shipments
-        $shipmentsQuery = Shipment::with(['order.requestingOrganization', 'order.items.item', 'courier', 'originWarehouse'])
-            ->whereIn('status', ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY']);
+        $shipmentsQuery = Shipment::with([
+            'order.requestingOrganization',
+            'order.items.item',
+            'switchingStock.destinationOrganization',
+            'switchingStock.sourceWarehouse',
+            'switchingStock.items.item',
+            'destinationOrganization',
+            'courier',
+            'originWarehouse',
+        ])->whereIn('status', ['DISPATCHED', 'IN_TRANSIT', 'OUT_FOR_DELIVERY']);
 
         if ($isBranch) {
-            $shipmentsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $user->organization_id));
+            $shipmentsQuery->where(function ($q) use ($user) {
+                $q->whereHas('order', fn ($sub) => $sub->where('requesting_organization_id', $user->organization_id))
+                    ->orWhere('destination_organization_id', $user->organization_id)
+                    ->orWhereHas('switchingStock', fn ($sub) => $sub->where('destination_organization_id', $user->organization_id));
+            });
         } elseif ($organizationId && $organizationId !== 'ALL') {
-            $shipmentsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $organizationId));
+            $shipmentsQuery->where(function ($q) use ($organizationId) {
+                $q->whereHas('order', fn ($sub) => $sub->where('requesting_organization_id', $organizationId))
+                    ->orWhere('destination_organization_id', $organizationId)
+                    ->orWhereHas('switchingStock', fn ($sub) => $sub->where('destination_organization_id', $organizationId));
+            });
         }
 
         if ($courierId && $courierId !== 'ALL') {
@@ -58,6 +74,7 @@ class ReceivingController extends Controller
                 $q->where('manifest_number', 'like', "%{$search}%")
                     ->orWhere('tracking_number', 'like', "%{$search}%")
                     ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', "%{$search}%")->orWhereHas('requestingOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")->orWhere('code', 'like', "%{$search}%")))
+                    ->orWhereHas('switchingStock', fn ($sw) => $sw->whereHas('destinationOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%"))->orWhereHas('sourceWarehouse', fn ($wh) => $wh->where('name', 'like', "%{$search}%")))
                     ->orWhereHas('courier', fn ($c) => $c->where('name', 'like', "%{$search}%"));
             });
         }
@@ -65,12 +82,28 @@ class ReceivingController extends Controller
         $incomingShipments = $shipmentsQuery->latest()->paginate($perPage, ['*'], 'shipments_page')->withQueryString();
 
         // Query Receivings History
-        $receivingsQuery = Receiving::with(['order.requestingOrganization', 'order.items.item', 'shipment.courier', 'receiver', 'discrepancies.item']);
+        $receivingsQuery = Receiving::with([
+            'order.requestingOrganization',
+            'order.items.item',
+            'switchingStock.destinationOrganization',
+            'switchingStock.items.item',
+            'shipment.courier',
+            'receiver',
+            'discrepancies.item',
+        ]);
 
         if ($isBranch) {
-            $receivingsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $user->organization_id));
+            $receivingsQuery->where(function ($q) use ($user) {
+                $q->where('organization_id', $user->organization_id)
+                    ->orWhereHas('order', fn ($sub) => $sub->where('requesting_organization_id', $user->organization_id))
+                    ->orWhereHas('switchingStock', fn ($sub) => $sub->where('destination_organization_id', $user->organization_id));
+            });
         } elseif ($organizationId && $organizationId !== 'ALL') {
-            $receivingsQuery->whereHas('order', fn ($q) => $q->where('organization_id', $organizationId));
+            $receivingsQuery->where(function ($q) use ($organizationId) {
+                $q->where('organization_id', $organizationId)
+                    ->orWhereHas('order', fn ($sub) => $sub->where('requesting_organization_id', $organizationId))
+                    ->orWhereHas('switchingStock', fn ($sub) => $sub->where('destination_organization_id', $organizationId));
+            });
         }
 
         if ($status && $status !== 'ALL' && $tab === 'history') {
@@ -83,6 +116,7 @@ class ReceivingController extends Controller
                     ->orWhere('notes', 'like', "%{$search}%")
                     ->orWhereHas('shipment', fn ($s) => $s->where('manifest_number', 'like', "%{$search}%")->orWhere('tracking_number', 'like', "%{$search}%"))
                     ->orWhereHas('order', fn ($o) => $o->where('order_number', 'like', "%{$search}%")->orWhereHas('requestingOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")))
+                    ->orWhereHas('switchingStock', fn ($sw) => $sw->whereHas('destinationOrganization', fn ($org) => $org->where('name', 'like', "%{$search}%")))
                     ->orWhereHas('receiver', fn ($r) => $r->where('name', 'like', "%{$search}%"));
             });
         }
@@ -109,10 +143,22 @@ class ReceivingController extends Controller
 
     public function createReceiptForm($shipmentId)
     {
-        $shipment = Shipment::with(['order.items.item', 'courier', 'originWarehouse'])->findOrFail($shipmentId);
-        $user = Auth::user();
+        $shipment = Shipment::with([
+            'order.items.item',
+            'order.requestingOrganization',
+            'switchingStock.items.item',
+            'switchingStock.sourceWarehouse',
+            'switchingStock.destinationOrganization',
+            'switchingStock.destinationWarehouse',
+            'courier',
+            'originWarehouse',
+            'destinationOrganization',
+        ])->findOrFail($shipmentId);
 
-        if ($user->isBranchUser() && $user->organization_id && $shipment->order && $shipment->order->organization_id !== $user->organization_id) {
+        $user = Auth::user();
+        $targetOrgId = $shipment->destination_organization_id ?: ($shipment->order?->requesting_organization_id ?? $shipment->switchingStock?->destination_organization_id);
+
+        if ($user->isBranchUser() && $user->organization_id && $targetOrgId && $targetOrgId !== $user->organization_id) {
             return back()->with('error', 'Anda tidak berwenang menerima pengiriman untuk unit kerja lain.');
         }
 
@@ -121,17 +167,19 @@ class ReceivingController extends Controller
 
     public function confirmReceipt(Request $request, $shipmentId)
     {
-        $shipment = Shipment::with('order.items')->findOrFail($shipmentId);
+        $shipment = Shipment::with(['order.items', 'switchingStock.items'])->findOrFail($shipmentId);
         $user = Auth::user();
+        $targetOrgId = $shipment->destination_organization_id ?: ($shipment->order?->requesting_organization_id ?? $shipment->switchingStock?->destination_organization_id);
 
-        if ($user->isBranchUser() && $user->organization_id && $shipment->order && $shipment->order->organization_id !== $user->organization_id) {
+        if ($user->isBranchUser() && $user->organization_id && $targetOrgId && $targetOrgId !== $user->organization_id) {
             return back()->with('error', 'Anda tidak berwenang menerima pengiriman untuk unit kerja lain.');
         }
 
         $request->validate([
             'pod_signature' => 'required|string',
             'items' => 'required|array|min:1',
-            'items.*.order_item_id' => 'required|exists:order_items,id',
+            'items.*.order_item_id' => 'nullable|exists:order_items,id',
+            'items.*.switching_stock_item_id' => 'nullable|exists:switching_stock_items,id',
             'items.*.qty_good' => 'required|integer|min:0',
             'items.*.qty_damaged' => 'nullable|integer|min:0',
             'items.*.qty_missing' => 'nullable|integer|min:0',
@@ -166,9 +214,9 @@ class ReceivingController extends Controller
         $baseQuery = Discrepancy::with(['receiving.order.requestingOrganization', 'receiving.shipment.originWarehouse', 'receiving.receiver', 'item.category']);
 
         if ($isBranch) {
-            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('organization_id', $user->organization_id));
+            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('requesting_organization_id', $user->organization_id));
         } elseif ($organizationId && $organizationId !== 'ALL') {
-            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('organization_id', $organizationId));
+            $baseQuery->whereHas('receiving.order', fn ($q) => $q->where('requesting_organization_id', $organizationId));
         }
 
         // Summary KPI Metrics
@@ -349,7 +397,7 @@ class ReceivingController extends Controller
             );
 
             return redirect()->route('receiving.po.index', ['tab' => 'history'])
-                ->with('success', "Penerimaan barang vendor berhasil diposting ke Stock Ledger (GRN: {$grn->grn_number}).");
+                ->with('success', "Penerimaan barang vendor berhasil diposting ke Stock Ledger & Buku Besar (GRN: {$grn->grn_number}).");
         } catch (Exception $e) {
             return back()->withInput()->with('error', 'Gagal memproses penerimaan barang: '.$e->getMessage());
         }

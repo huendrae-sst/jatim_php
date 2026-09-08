@@ -828,5 +828,7 @@ class DatabaseSeeder extends Seeder
                 'created_at' => $now->copy()->subDays(rand(1, 30)),
             ]);
         }
+
+        $this->call(GeneralLedgerSeeder::class);
     }
 }

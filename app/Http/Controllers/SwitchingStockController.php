@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Item;
 use App\Models\Organization;
+use App\Models\StockBalance;
 use App\Models\SwitchingStock;
 use App\Models\Warehouse;
 use App\Services\SwitchingStockService;
@@ -36,6 +37,8 @@ class SwitchingStockController extends Controller
             'destinationWarehouse',
             'proposer',
             'approver',
+            'transferredBy',
+            'receivedBy',
         ]);
 
         if ($search) {
@@ -256,6 +259,198 @@ class SwitchingStockController extends Controller
             $ref = $switching->order ? "order {$switching->order->order_number}" : "switching manual #{$switching->id}";
 
             return redirect()->back()->with('success', "Switching stock untuk {$ref} berhasil disetujui & stok unit sumber direservasi.");
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function approvals(Request $request)
+    {
+        $statusTab = $request->get('tab', 'pending'); // pending, history, all
+        $user = Auth::user();
+        $isBranchApprover = $user->isBranchUser() && $user->organization_id;
+
+        $baseApprovalsQuery = SwitchingStock::query();
+        if ($isBranchApprover) {
+            $baseApprovalsQuery->where(function ($q) use ($user) {
+                $q->where('source_organization_id', $user->organization_id)
+                    ->orWhere('destination_organization_id', $user->organization_id);
+            });
+        }
+
+        $pendingCount = (clone $baseApprovalsQuery)->whereIn('status', ['PROPOSED', 'WAITING_APPROVAL'])->count();
+        $historyCount = (clone $baseApprovalsQuery)->whereNotIn('status', ['PROPOSED', 'WAITING_APPROVAL'])->count();
+        $allCount = (clone $baseApprovalsQuery)->count();
+
+        $query = (clone $baseApprovalsQuery)->with([
+            'order.requestingOrganization',
+            'item.category',
+            'items.item.category',
+            'sourceOrganization',
+            'sourceWarehouse',
+            'destinationOrganization',
+            'destinationWarehouse',
+            'proposer',
+            'approver',
+        ]);
+
+        if ($statusTab === 'pending') {
+            $query->whereIn('status', ['PROPOSED', 'WAITING_APPROVAL']);
+        } elseif ($statusTab === 'history') {
+            $query->whereNotIn('status', ['PROPOSED', 'WAITING_APPROVAL']);
+        }
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->whereHas('items.item', function ($iq) use ($s) {
+                    $iq->where('name', 'ilike', "%{$s}%")
+                        ->orWhere('sku', 'ilike', "%{$s}%");
+                })->orWhereHas('item', function ($iq) use ($s) {
+                    $iq->where('name', 'ilike', "%{$s}%")
+                        ->orWhere('sku', 'ilike', "%{$s}%");
+                })->orWhereHas('order', function ($oq) use ($s) {
+                    $oq->where('order_number', 'ilike', "%{$s}%");
+                })->orWhereHas('sourceOrganization', function ($soq) use ($s) {
+                    $soq->where('name', 'ilike', "%{$s}%")->orWhere('code', 'ilike', "%{$s}%");
+                })->orWhereHas('destinationOrganization', function ($doq) use ($s) {
+                    $doq->where('name', 'ilike', "%{$s}%")->orWhere('code', 'ilike', "%{$s}%");
+                })->orWhere('recommendation_reason', 'ilike', "%{$s}%")
+                    ->orWhere('rejection_reason', 'ilike', "%{$s}%");
+            });
+        }
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
+        $switchings = $query->latest()->paginate($perPage)->withQueryString();
+
+        // Selected switching stock for detailed approval preview
+        $selectedSwitchingId = $request->get('switching_id', $switchings->first()?->id);
+        $selectedSwitching = null;
+
+        if ($selectedSwitchingId) {
+            $selectedSwitching = SwitchingStock::with([
+                'order.requestingOrganization',
+                'item.category',
+                'items.item.category',
+                'sourceOrganization',
+                'sourceWarehouse',
+                'destinationOrganization',
+                'destinationWarehouse',
+                'proposer',
+                'approver',
+                'transferredBy',
+                'receivedBy',
+            ])->find($selectedSwitchingId);
+
+            if ($selectedSwitching) {
+                // Calculate stock balances at source warehouse
+                $swItemIds = $selectedSwitching->items->isNotEmpty()
+                    ? $selectedSwitching->items->pluck('item_id')->all()
+                    : ($selectedSwitching->item_id ? [$selectedSwitching->item_id] : []);
+
+                $stockBalances = StockBalance::where('warehouse_id', $selectedSwitching->source_warehouse_id)
+                    ->whereIn('item_id', $swItemIds)
+                    ->get()
+                    ->keyBy('item_id');
+
+                $selectedSwitching->items_with_stock = $selectedSwitching->items->isNotEmpty()
+                    ? $selectedSwitching->items->map(function ($it) use ($stockBalances) {
+                        $sb = $stockBalances->get($it->item_id);
+                        $available = $sb ? (int) $sb->available : 0;
+                        $safetyStock = $it->item ? (int) $it->item->safety_stock : 0;
+                        $excess = max(0, $available - $safetyStock);
+
+                        return [
+                            'id' => $it->id,
+                            'item_id' => $it->item_id,
+                            'item' => $it->item,
+                            'qty_requested' => $it->qty_requested,
+                            'available_stock' => $available,
+                            'safety_stock' => $safetyStock,
+                            'excess_stock' => $excess,
+                            'is_sufficient' => $available >= $it->qty_requested,
+                            'is_safe_excess' => $excess >= $it->qty_requested,
+                        ];
+                    })
+                    : collect([
+                        [
+                            'id' => $selectedSwitching->id,
+                            'item_id' => $selectedSwitching->item_id,
+                            'item' => $selectedSwitching->item,
+                            'qty_requested' => $selectedSwitching->qty_requested,
+                            'available_stock' => ($sb = $stockBalances->get($selectedSwitching->item_id)) ? (int) $sb->available : 0,
+                            'safety_stock' => $selectedSwitching->item ? (int) $selectedSwitching->item->safety_stock : 0,
+                            'excess_stock' => max(0, (($sb ? (int) $sb->available : 0) - ($selectedSwitching->item ? (int) $selectedSwitching->item->safety_stock : 0))),
+                            'is_sufficient' => (($sb ? (int) $sb->available : 0) >= $selectedSwitching->qty_requested),
+                            'is_safe_excess' => (max(0, (($sb ? (int) $sb->available : 0) - ($selectedSwitching->item ? (int) $selectedSwitching->item->safety_stock : 0))) >= $selectedSwitching->qty_requested),
+                        ],
+                    ]);
+            }
+        }
+
+        return view('inventory.switching.approvals', compact(
+            'switchings',
+            'statusTab',
+            'pendingCount',
+            'historyCount',
+            'allCount',
+            'selectedSwitching'
+        ));
+    }
+
+    public function reject(Request $request, $id): RedirectResponse
+    {
+        $request->validate([
+            'rejection_reason' => 'required|string|min:5|max:500',
+        ]);
+
+        $switching = SwitchingStock::findOrFail($id);
+
+        try {
+            $this->switchingStockService->rejectSwitching($switching, $request->rejection_reason, Auth::user());
+
+            $ref = $switching->order ? "order {$switching->order->order_number}" : "switching manual #{$switching->id}";
+
+            return redirect()->back()->with('success', "Pengajuan switching stock untuk {$ref} telah ditolak.");
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function dispatchTransfer(Request $request, $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'notes' => 'nullable|string|max:1000',
+            'tracking_number' => 'nullable|string|max:100',
+        ]);
+
+        $switching = SwitchingStock::findOrFail($id);
+
+        try {
+            $this->switchingStockService->dispatchTransfer($switching, $validated, Auth::user());
+
+            $ref = $switching->order ? "Order #{$switching->order->order_number}" : "Switching #{$switching->id}";
+
+            return redirect()->back()->with('success', "Barang transfer switching stock untuk {$ref} telah berhasil dikirim dari gudang asal.");
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function receiveTransfer(Request $request, $id): RedirectResponse
+    {
+        $validated = $request->validate([
+            'notes' => 'nullable|string|max:1000',
+        ]);
+
+        $switching = SwitchingStock::findOrFail($id);
+
+        try {
+            $this->switchingStockService->receiveTransfer($switching, $validated, Auth::user());
+
+            $ref = $switching->order ? "Order #{$switching->order->order_number}" : "Switching #{$switching->id}";
+
+            return redirect()->back()->with('success', "Penerimaan barang switching stock untuk {$ref} telah berhasil dikonfirmasi di gudang tujuan.");
         } catch (Exception $e) {
             return redirect()->back()->with('error', $e->getMessage());
         }

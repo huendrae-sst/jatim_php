@@ -8,12 +8,14 @@ use App\Models\StockBalance;
 use App\Models\SwitchingStock;
 use App\Models\User;
 use App\Models\Warehouse;
+use Exception;
 use Illuminate\Support\Facades\DB;
 
 class SwitchingStockService
 {
     public function __construct(
-        protected StockLedgerService $stockLedgerService
+        protected StockLedgerService $stockLedgerService,
+        protected GeneralLedgerService $generalLedgerService
     ) {}
 
     public function findAlternativeSources(Item $item, int $requiredQty, int $excludeOrgId): array
@@ -402,7 +404,7 @@ class SwitchingStockService
     public function updateSwitching(SwitchingStock $switching, array $data, User $user): SwitchingStock
     {
         if ($switching->status !== 'PROPOSED') {
-            throw new \Exception('Hanya switching stock berstatus PROPOSED yang dapat diubah.');
+            throw new Exception('Hanya switching stock berstatus PROPOSED yang dapat diubah.');
         }
 
         return DB::transaction(function () use ($switching, $data, $user) {
@@ -468,7 +470,7 @@ class SwitchingStockService
     public function deleteSwitching(SwitchingStock $switching, User $user): void
     {
         if ($switching->status !== 'PROPOSED') {
-            throw new \Exception('Hanya switching stock berstatus PROPOSED yang dapat dihapus.');
+            throw new Exception('Hanya switching stock berstatus PROPOSED yang dapat dihapus.');
         }
 
         DB::transaction(function () use ($switching, $user) {
@@ -558,6 +560,200 @@ class SwitchingStockService
                 'SWITCHING_STOCK',
                 $switching->id,
                 '/inventory/switching-stocks'
+            );
+
+            return $switching;
+        });
+    }
+
+    public function rejectSwitching(SwitchingStock $switching, string $reason, User $approver): SwitchingStock
+    {
+        if (! in_array($switching->status, ['PROPOSED', 'WAITING_APPROVAL'], true)) {
+            throw new Exception('Hanya pengajuan switching stock dengan status PROPOSED atau WAITING_APPROVAL yang dapat ditolak.');
+        }
+
+        return DB::transaction(function () use ($switching, $reason, $approver) {
+            $switching->status = 'REJECTED';
+            $switching->rejection_reason = $reason;
+            $switching->approved_by_user_id = $approver->id;
+            $switching->save();
+
+            AuditTrailService::log('REJECT_SWITCHING_STOCK', $switching, null, ['status' => 'REJECTED', 'reason' => $reason], $approver);
+
+            $refNumber = $switching->order ? "Order #{$switching->order->order_number}" : "Switching Manual #{$switching->id}";
+            $targetUrl = $switching->order_id ? "/orders/{$switching->order_id}" : '/inventory/switching-stocks';
+
+            if ($switching->proposed_by_user_id) {
+                NotificationService::sendUser(
+                    $switching->proposed_by_user_id,
+                    'Switching Stock Ditolak',
+                    "Pengajuan switching stock untuk {$refNumber} ditolak. Alasan: {$reason}",
+                    'WARNING',
+                    'ALERT',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    $targetUrl
+                );
+            }
+
+            return $switching;
+        });
+    }
+
+    public function dispatchTransfer(SwitchingStock $switching, array $data, User $user): SwitchingStock
+    {
+        if (! in_array($switching->status, ['APPROVED', 'RESERVED'], true)) {
+            throw new Exception('Hanya switching stock dengan status APPROVED atau RESERVED yang dapat dikirim/transfer.');
+        }
+
+        return DB::transaction(function () use ($switching, $data, $user) {
+            $switching->status = 'TRANSFERRED';
+            $switching->transferred_by_user_id = $user->id;
+            $switching->transferred_at = now();
+            $switching->transfer_notes = $data['notes'] ?? null;
+            $switching->tracking_number = $data['tracking_number'] ?? null;
+            $switching->save();
+
+            $switching->loadMissing('items.item', 'sourceWarehouse', 'destinationWarehouse', 'item', 'order');
+
+            $refNo = 'SW-'.str_pad((string) $switching->id, 5, '0', STR_PAD_LEFT);
+
+            if ($switching->items->isNotEmpty()) {
+                foreach ($switching->items as $itemRow) {
+                    $this->stockLedgerService->dispatchSwitchingTransfer(
+                        $switching->sourceWarehouse,
+                        $itemRow->item,
+                        $itemRow->qty_requested,
+                        $refNo,
+                        $user
+                    );
+                }
+            } elseif ($switching->item && $switching->qty_requested) {
+                $this->stockLedgerService->dispatchSwitchingTransfer(
+                    $switching->sourceWarehouse,
+                    $switching->item,
+                    $switching->qty_requested,
+                    $refNo,
+                    $user
+                );
+            }
+
+            // Record balanced General Ledger journal for switching dispatch
+            $this->generalLedgerService->recordSwitchingDispatchJournal($switching, null, $user);
+
+            AuditTrailService::log('DISPATCH_SWITCHING_STOCK', $switching, null, [
+                'status' => 'TRANSFERRED',
+                'transferred_at' => now()->toIso8601String(),
+                'tracking_number' => $switching->tracking_number,
+                'transfer_notes' => $switching->transfer_notes,
+            ], $user);
+
+            $targetUrl = '/inventory/switching-stocks/approvals?switching_id='.$switching->id;
+
+            // Notify destination warehouse to receive
+            NotificationService::sendActionRequired(
+                "Konfirmasi Penerimaan Switching Stock ({$refNo})",
+                "Barang switching stock ({$refNo}) telah dikirim dari {$switching->sourceWarehouse->name}. Mohon gudang {$switching->destinationWarehouse->name} mengonfirmasi penerimaan fisik barang.",
+                'WAREHOUSE_OFFICER',
+                $switching->destination_organization_id,
+                'SWITCHING_STOCK',
+                $switching->id,
+                $targetUrl
+            );
+
+            // Notify proposer
+            if ($switching->proposed_by_user_id && $switching->proposed_by_user_id !== $user->id) {
+                NotificationService::sendUser(
+                    $switching->proposed_by_user_id,
+                    'Switching Stock Dikirim',
+                    "Barang switching stock ({$refNo}) telah dikirim dari unit sumber menuju {$switching->destinationWarehouse->name}.",
+                    'INFORMATION',
+                    'INFO',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    $targetUrl
+                );
+            }
+
+            return $switching;
+        });
+    }
+
+    public function receiveTransfer(SwitchingStock $switching, array $data, User $user): SwitchingStock
+    {
+        if ($switching->status !== 'TRANSFERRED') {
+            throw new Exception('Hanya switching stock dengan status TRANSFERRED yang dapat dikonfirmasi penerimaannya.');
+        }
+
+        return DB::transaction(function () use ($switching, $data, $user) {
+            $switching->status = 'COMPLETED';
+            $switching->received_by_user_id = $user->id;
+            $switching->received_at = now();
+            $switching->receipt_notes = $data['notes'] ?? null;
+            $switching->save();
+
+            $switching->loadMissing('items.item', 'destinationWarehouse', 'sourceWarehouse', 'item', 'order');
+
+            $refNo = 'SW-'.str_pad((string) $switching->id, 5, '0', STR_PAD_LEFT);
+
+            if ($switching->items->isNotEmpty()) {
+                foreach ($switching->items as $itemRow) {
+                    $this->stockLedgerService->receiveSwitchingTransfer(
+                        $switching->destinationWarehouse,
+                        $itemRow->item,
+                        $itemRow->qty_requested,
+                        0,
+                        $refNo,
+                        $user
+                    );
+                }
+            } elseif ($switching->item && $switching->qty_requested) {
+                $this->stockLedgerService->receiveSwitchingTransfer(
+                    $switching->destinationWarehouse,
+                    $switching->item,
+                    $switching->qty_requested,
+                    0,
+                    $refNo,
+                    $user
+                );
+            }
+
+            // Record balanced General Ledger journal for switching receipt
+            $this->generalLedgerService->recordSwitchingReceiptJournal($switching, null, $user);
+
+            AuditTrailService::log('RECEIVE_SWITCHING_STOCK', $switching, null, [
+                'status' => 'COMPLETED',
+                'received_at' => now()->toIso8601String(),
+                'receipt_notes' => $switching->receipt_notes,
+            ], $user);
+
+            $targetUrl = '/inventory/switching-stocks/approvals?switching_id='.$switching->id;
+
+            // Notify proposer
+            if ($switching->proposed_by_user_id) {
+                NotificationService::sendUser(
+                    $switching->proposed_by_user_id,
+                    'Switching Stock Selesai Diterima',
+                    "Barang switching stock ({$refNo}) telah diterima dengan baik di {$switching->destinationWarehouse->name}. Transaksi selesai.",
+                    'INFORMATION',
+                    'INFO',
+                    'SWITCHING_STOCK',
+                    $switching->id,
+                    $targetUrl
+                );
+            }
+
+            // Notify source warehouse
+            NotificationService::sendRole(
+                'WAREHOUSE_OFFICER',
+                'Switching Stock Selesai Diterima',
+                "Barang switching stock ({$refNo}) yang dikirim dari {$switching->sourceWarehouse->name} telah berhasil diterima di {$switching->destinationWarehouse->name}.",
+                $switching->source_organization_id,
+                'INFORMATION',
+                'INFO',
+                'SWITCHING_STOCK',
+                $switching->id,
+                $targetUrl
             );
 
             return $switching;

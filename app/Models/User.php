@@ -101,26 +101,233 @@ class User extends Authenticatable
         }
 
         return match ($module) {
-            'orders' => in_array($this->role, ['REQUESTER_CABANG', 'ORDER_APPROVER', 'RECEIVING_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'order_approvals' => in_array($this->role, ['ORDER_APPROVER', 'AUDITOR', 'MANAGEMENT'], true),
-            'warehouse' => in_array($this->role, ['WAREHOUSE_OFFICER', 'DISTRIBUTION_OFFICER', 'INVENTORY_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'warehouse_ops' => in_array($this->role, ['WAREHOUSE_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'distribution' => in_array($this->role, ['DISTRIBUTION_OFFICER', 'WAREHOUSE_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'receiving' => in_array($this->role, ['RECEIVING_OFFICER', 'REQUESTER_CABANG', 'ORDER_APPROVER', 'WAREHOUSE_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'inventory' => in_array($this->role, ['INVENTORY_OFFICER', 'WAREHOUSE_OFFICER', 'REQUESTER_CABANG', 'ORDER_APPROVER', 'AUDITOR', 'MANAGEMENT'], true),
-            'inventory_ops' => in_array($this->role, ['INVENTORY_OFFICER', 'WAREHOUSE_OFFICER', 'AUDITOR'], true),
-            'inventory_advanced' => in_array($this->role, ['INVENTORY_OFFICER', 'SWITCHING_APPROVER', 'MANAGEMENT', 'AUDITOR'], true),
-            'procurement' => in_array($this->role, ['PROCUREMENT_OFFICER', 'PROCUREMENT_APPROVER', 'AUDITOR', 'MANAGEMENT'], true),
-            'procurement_maker' => in_array($this->role, ['PROCUREMENT_OFFICER'], true),
-            'finance' => in_array($this->role, ['FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'AUDITOR', 'MANAGEMENT'], true),
-            'master_data' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'USER_ADMIN', 'AUDITOR'], true),
-            'master_items' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'INVENTORY_OFFICER', 'AUDITOR'], true),
-            'master_budgets' => in_array($this->role, ['BUDGET_OFFICER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'AUDITOR'], true),
-            'master_accounting' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'USER_ADMIN', 'AUDITOR'], true),
-            'master_vendors' => in_array($this->role, ['MASTER_MAKER', 'MASTER_APPROVER', 'PROCUREMENT_OFFICER', 'AUDITOR'], true),
-            'master_users' => in_array($this->role, ['USER_ADMIN', 'IT_OPS', 'AUDITOR'], true),
-            'audit' => in_array($this->role, ['AUDITOR', 'IT_OPS', 'USER_ADMIN'], true),
-            'reports' => in_array($this->role, ['MANAGEMENT', 'AUDITOR', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'PROCUREMENT_OFFICER', 'INVENTORY_OFFICER'], true),
+            'orders' => in_array($this->role, [
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'RECEIVING_OFFICER',
+                'WAREHOUSE_OFFICER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'order_approvals' => in_array($this->role, [
+                'ORDER_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'warehouse' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'DISTRIBUTION_OFFICER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'warehouse_ops' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'distribution' => in_array($this->role, [
+                'DISTRIBUTION_OFFICER',
+                'WAREHOUSE_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'receiving' => in_array($this->role, [
+                'RECEIVING_OFFICER',
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'WAREHOUSE_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'DISTRIBUTION_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'receiving_po' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'receiving_branch' => in_array($this->role, [
+                'RECEIVING_OFFICER',
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'WAREHOUSE_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'discrepancies' => in_array($this->role, [
+                'RECEIVING_OFFICER',
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'WAREHOUSE_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'DISTRIBUTION_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'inventory' => in_array($this->role, [
+                'INVENTORY_OFFICER',
+                'WAREHOUSE_OFFICER',
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'RECEIVING_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'SWITCHING_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'inventory_ops' => in_array($this->role, [
+                'INVENTORY_OFFICER',
+                'WAREHOUSE_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'inventory_advanced' => in_array($this->role, [
+                'INVENTORY_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'MANAGEMENT',
+                'AUDITOR',
+            ], true),
+            'inventory_switching' => in_array($this->role, [
+                'INVENTORY_OFFICER',
+                'SWITCHING_APPROVER',
+                'WAREHOUSE_OFFICER',
+                'ORDER_APPROVER',
+                'MANAGEMENT',
+                'AUDITOR',
+            ], true),
+            'switching_approvals' => in_array($this->role, [
+                'SWITCHING_APPROVER',
+                'ORDER_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'procurement' => in_array($this->role, [
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+                'REQUESTER_CABANG',
+            ], true),
+            'procurement_pr' => in_array($this->role, [
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+                'REQUESTER_CABANG',
+            ], true),
+            'procurement_po' => in_array($this->role, [
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'procurement_maker' => in_array($this->role, [
+                'PROCUREMENT_OFFICER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'procurement_approvals' => in_array($this->role, [
+                'PROCUREMENT_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'finance' => in_array($this->role, [
+                'FINANCE_OFFICER',
+                'FINANCE_APPROVER',
+                'BUDGET_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'master_data' => in_array($this->role, [
+                'MASTER_MAKER',
+                'MASTER_APPROVER',
+                'USER_ADMIN',
+                'AUDITOR',
+            ], true),
+            'master_items' => in_array($this->role, [
+                'MASTER_MAKER',
+                'MASTER_APPROVER',
+                'INVENTORY_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'AUDITOR',
+            ], true),
+            'master_budgets' => in_array($this->role, [
+                'BUDGET_OFFICER',
+                'FINANCE_OFFICER',
+                'FINANCE_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'master_accounting' => in_array($this->role, [
+                'MASTER_MAKER',
+                'MASTER_APPROVER',
+                'FINANCE_OFFICER',
+                'FINANCE_APPROVER',
+                'BUDGET_OFFICER',
+                'USER_ADMIN',
+                'AUDITOR',
+            ], true),
+            'master_vendors' => in_array($this->role, [
+                'MASTER_MAKER',
+                'MASTER_APPROVER',
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'DISTRIBUTION_OFFICER',
+                'AUDITOR',
+            ], true),
+            'master_users' => in_array($this->role, [
+                'USER_ADMIN',
+                'IT_OPS',
+                'AUDITOR',
+            ], true),
+
+            'audit' => in_array($this->role, [
+                'AUDITOR',
+                'IT_OPS',
+                'USER_ADMIN',
+                'MANAGEMENT',
+            ], true),
+
+            'reports' => in_array($this->role, [
+                'MANAGEMENT',
+                'AUDITOR',
+                'FINANCE_OFFICER',
+                'FINANCE_APPROVER',
+                'BUDGET_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'INVENTORY_OFFICER',
+            ], true),
+            default => false,
+        };
+    }
+
+    public function canAccessReport(string $report): bool
+    {
+        if ($this->role === 'SUPER_ADMIN') {
+            return true;
+        }
+
+        return match ($report) {
+            'stock_valuation' => in_array($this->role, ['INVENTORY_OFFICER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'MANAGEMENT', 'AUDITOR'], true),
+            'settlements' => in_array($this->role, ['FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'MANAGEMENT', 'AUDITOR'], true),
+            'procurement_coverage' => in_array($this->role, ['PROCUREMENT_OFFICER', 'PROCUREMENT_APPROVER', 'MANAGEMENT', 'AUDITOR'], true),
+            'general_ledger' => in_array($this->role, ['FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'MANAGEMENT', 'AUDITOR', 'REQUESTER_CABANG', 'ORDER_APPROVER'], true),
             default => false,
         };
     }

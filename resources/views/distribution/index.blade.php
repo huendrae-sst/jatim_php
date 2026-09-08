@@ -11,16 +11,30 @@
 <div x-data="{
     dispatchModalOpen: false,
     viewModalOpen: false,
+    dispatchType: 'order',
     selectedOrder: null,
+    selectedSwitching: null,
     selectedShipment: null,
     readyOrdersList: {{ Js::from($readyOrders) }},
+    readySwitchingsList: {{ Js::from($readySwitchings) }},
     allCouriers: {{ Js::from($couriers) }},
 
     openCreateManifestModal(order = null) {
+        this.dispatchType = 'order';
         if (order) {
             this.selectedOrder = order;
         } else if (this.readyOrdersList.length > 0 && !this.selectedOrder) {
             this.selectedOrder = this.readyOrdersList[0];
+        }
+        this.dispatchModalOpen = true;
+    },
+
+    openCreateSwitchingManifestModal(switching = null) {
+        this.dispatchType = 'switching';
+        if (switching) {
+            this.selectedSwitching = switching;
+        } else if (this.readySwitchingsList.length > 0 && !this.selectedSwitching) {
+            this.selectedSwitching = this.readySwitchingsList[0];
         }
         this.dispatchModalOpen = true;
     },
@@ -33,8 +47,27 @@
     onOrderSelect(event) {
         const orderId = event.target.value;
         this.selectedOrder = this.readyOrdersList.find(o => o.id == orderId) || null;
+    },
+
+    onSwitchingSelect(event) {
+        const swId = event.target.value;
+        this.selectedSwitching = this.readySwitchingsList.find(s => s.id == swId) || null;
     }
-}" class="space-y-4">
+}" 
+x-init="
+    @if(request('switching_id'))
+        const targetSw = readySwitchingsList.find(s => s.id == {{ (int) request('switching_id') }});
+        if (targetSw) {
+            openCreateSwitchingManifestModal(targetSw);
+        }
+    @elseif(request('order_id'))
+        const targetOrd = readyOrdersList.find(o => o.id == {{ (int) request('order_id') }});
+        if (targetOrd) {
+            openCreateManifestModal(targetOrd);
+        }
+    @endif
+"
+class="space-y-4">
 
     <!-- Flash Alerts -->
     @if(session('success'))
@@ -135,6 +168,110 @@
                                             @click="openCreateManifestModal({{ json_encode($ordData) }})" 
                                             class="btn-action-icon text-danger btn btn-sm btn-outline-danger py-0.5 px-1.5 fs-9 fw-bold" 
                                             title="Terbitkan Manifest & Dispatch Ekspedisi">
+                                        <i class="bi bi-truck"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @endif
+
+    <!-- Section 1.B: Switching Stock Siap Diberangkatkan (APPROVED / RESERVED) -->
+    @if($readySwitchings->count() > 0)
+        <div class="card card-outline card-info shadow-xs mb-3">
+            <div class="card-header border-bottom d-flex flex-column flex-md-row align-items-stretch align-items-md-center justify-content-between gap-2 py-2.5 px-4 bg-info-subtle">
+                <h4 class="card-title fs-7 fw-bold mb-0 text-info-emphasis d-flex align-items-center">
+                    <i class="bi bi-arrow-left-right me-2 text-info"></i>
+                    Transfer Switching Stock Siap Dikirim (Status: APPROVED / RESERVED)
+                </h4>
+                <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
+                    <span class="badge bg-info text-dark font-monospace fs-8">
+                        {{ $readySwitchings->count() }} Transfer Siap Kirim
+                    </span>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0 text-nowrap fs-8">
+                    <thead class="table-light text-secondary text-uppercase fs-9">
+                        <tr>
+                            <th class="ps-4 py-2.5" style="width: 170px;">No. Transfer & Tanggal</th>
+                            <th class="py-2.5" style="width: 220px;">Gudang Sumber (Asal)</th>
+                            <th class="py-2.5" style="width: 220px;">Cabang & Gudang Tujuan</th>
+                            <th class="py-2.5">Rincian Barang</th>
+                            <th class="py-2.5 text-center" style="width: 120px;">Total Qty</th>
+                            <th class="pe-4 py-2.5 text-center" style="min-width: 90px;">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($readySwitchings as $sw)
+                            @php
+                                $swData = [
+                                    'id' => $sw->id,
+                                    'transfer_number' => $sw->transfer_number ?? $sw->id,
+                                    'created_at' => $sw->created_at ? $sw->created_at->format('d/m/Y H:i') : '-',
+                                    'source_organization' => [
+                                        'name' => $sw->sourceOrganization->name ?? '-',
+                                        'city' => $sw->sourceOrganization->city ?? '-',
+                                    ],
+                                    'source_warehouse' => [
+                                        'name' => $sw->sourceWarehouse->name ?? '-',
+                                        'code' => $sw->sourceWarehouse->code ?? '-',
+                                    ],
+                                    'destination_organization' => [
+                                        'name' => $sw->destinationOrganization->name ?? '-',
+                                        'city' => $sw->destinationOrganization->city ?? '-',
+                                        'address' => $sw->destinationOrganization->address ?? '-',
+                                    ],
+                                    'destination_warehouse' => [
+                                        'name' => $sw->destinationWarehouse->name ?? '-',
+                                        'code' => $sw->destinationWarehouse->code ?? '-',
+                                    ],
+                                    'total_qty' => $sw->total_qty,
+                                    'total_items_count' => $sw->total_items_count,
+                                    'items' => $sw->items->map(fn($it) => [
+                                        'name' => $it->item->name ?? 'Item',
+                                        'sku' => $it->item->sku ?? '-',
+                                        'uom' => $it->item->uom ?? 'Unit',
+                                        'qty' => $it->qty_requested,
+                                    ])->values(),
+                                ];
+                            @endphp
+                            <tr>
+                                <td class="ps-4 font-monospace">
+                                    <span class="fw-bold text-info-emphasis d-block">Switching #{{ $sw->id }}</span>
+                                    <span class="text-secondary fs-9">{{ $sw->created_at ? $sw->created_at->format('d/m/Y H:i') : '-' }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-body d-block">{{ $sw->sourceWarehouse->name ?? '-' }}</span>
+                                    <span class="text-secondary fs-9"><i class="bi bi-building me-1"></i>{{ $sw->sourceOrganization->name ?? '-' }}</span>
+                                </td>
+                                <td>
+                                    <span class="fw-semibold text-body d-block">{{ $sw->destinationOrganization->name ?? '-' }}</span>
+                                    <span class="text-secondary fs-9"><i class="bi bi-geo-alt me-1"></i>Gudang: {{ $sw->destinationWarehouse->name ?? '-' }} ({{ $sw->destinationOrganization->city ?? '-' }})</span>
+                                </td>
+                                <td>
+                                    <span class="text-body fs-9">
+                                        @if($sw->items->count() > 1)
+                                            {{ $sw->items->first()?->item?->name ?? 'Barang' }} (+{{ $sw->items->count() - 1 }} item lainnya)
+                                        @else
+                                            {{ $sw->items->first()?->item?->name ?? ($sw->item?->name ?? 'Barang') }}
+                                        @endif
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-8">
+                                        {{ $sw->total_qty }} Unit ({{ $sw->total_items_count }} SKU)
+                                    </span>
+                                </td>
+                                <td class="pe-4 text-center">
+                                    <button type="button" 
+                                            @click="openCreateSwitchingManifestModal({{ json_encode($swData) }})" 
+                                            class="btn-action-icon text-info btn btn-sm btn-outline-info py-0.5 px-1.5 fs-9 fw-bold" 
+                                            title="Terbitkan Manifest & Dispatch Switching Stock">
                                         <i class="bi bi-truck"></i>
                                     </button>
                                 </td>
@@ -253,6 +390,10 @@
                 <tbody>
                     @forelse($shipments as $shp)
                         @php
+                            $isSwitching = (bool) $shp->switching_stock_id;
+                            $destName = $shp->order->requestingOrganization->name ?? ($shp->switchingStock->destinationOrganization->name ?? ($shp->destinationOrganization->name ?? '-'));
+                            $destCity = $shp->order->requestingOrganization->city ?? ($shp->switchingStock->destinationOrganization->city ?? ($shp->destinationOrganization->city ?? '-'));
+                            $srcWhName = $shp->switchingStock->sourceWarehouse->name ?? ($shp->originWarehouse->name ?? 'Gudang Pengirim');
                             $shpData = [
                                 'id' => $shp->id,
                                 'manifest_number' => $shp->manifest_number,
@@ -262,8 +403,11 @@
                                 'shipping_cost' => $shp->shipping_cost,
                                 'eta_date' => $shp->eta_date ? $shp->eta_date->format('d/m/Y') : '-',
                                 'created_at' => $shp->created_at ? $shp->created_at->format('d/m/Y H:i') : '-',
-                                'order_number' => $shp->order->order_number ?? '-',
-                                'branch_name' => $shp->order->requestingOrganization->name ?? '-',
+                                'is_switching' => $isSwitching,
+                                'order_number' => $isSwitching ? ('Switching #' . ($shp->switchingStock->transfer_number ?? $shp->switching_stock_id)) : ($shp->order->order_number ?? '-'),
+                                'branch_name' => $destName,
+                                'branch_city' => $destCity,
+                                'origin_warehouse' => $srcWhName,
                                 'courier_name' => $shp->courier->name ?? 'Kurir Internal',
                                 'dispatcher_name' => $shp->dispatcher->name ?? '-',
                                 'koli_count' => $shp->koli_count,
@@ -277,15 +421,23 @@
                                 <span class="text-secondary fs-9">{{ $shp->created_at ? $shp->created_at->format('d/m/Y H:i') : '-' }}</span>
                             </td>
 
-                            <!-- No. Order -->
+                            <!-- No. Order / Ref -->
                             <td class="font-monospace">
-                                <span class="fw-semibold text-body">{{ $shp->order->order_number ?? '-' }}</span>
+                                @if($isSwitching)
+                                    <span class="badge bg-info-subtle text-info font-monospace fs-9 mb-0.5">TRANSFER SWITCHING</span>
+                                    <span class="fw-semibold text-body d-block">#{{ $shp->switchingStock->transfer_number ?? $shp->switching_stock_id }}</span>
+                                @else
+                                    <span class="fw-semibold text-body">{{ $shp->order->order_number ?? '-' }}</span>
+                                @endif
                             </td>
 
                             <!-- Tujuan Cabang -->
                             <td>
-                                <div class="fw-semibold text-body">{{ $shp->order->requestingOrganization->name ?? '-' }}</div>
-                                <div class="fs-9 text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ $shp->order->requestingOrganization->city ?? '-' }}</div>
+                                <div class="fw-semibold text-body">{{ $destName }}</div>
+                                <div class="fs-9 text-secondary"><i class="bi bi-geo-alt me-1"></i>{{ $destCity }}</div>
+                                @if($isSwitching)
+                                    <div class="fs-9 text-secondary font-monospace">Dari: {{ $srcWhName }}</div>
+                                @endif
                             </td>
 
                             <!-- Ekspedisi & No. Resi -->
@@ -394,44 +546,115 @@
                 @csrf
                 <div class="card-body p-3.5 fs-8 overflow-y-auto space-y-3" style="flex: 1 1 auto;">
                     
-                    <!-- Section 1: Order Selection & Info Box -->
+                    <!-- Dispatch Type Selector -->
+                    <div class="d-flex gap-2 mb-1">
+                        <button type="button" 
+                                @click="dispatchType = 'order'; if(readyOrdersList.length > 0 && !selectedOrder) selectedOrder = readyOrdersList[0]" 
+                                :class="dispatchType === 'order' ? 'btn-danger' : 'btn-outline-secondary'" 
+                                class="btn btn-sm flex-fill fw-bold fs-8">
+                            <i class="bi bi-box-seam me-1"></i> Order Cabang
+                            <span class="badge bg-white text-danger ms-1" x-text="readyOrdersList.length"></span>
+                        </button>
+                        <button type="button" 
+                                @click="dispatchType = 'switching'; if(readySwitchingsList.length > 0 && !selectedSwitching) selectedSwitching = readySwitchingsList[0]" 
+                                :class="dispatchType === 'switching' ? 'btn-danger' : 'btn-outline-secondary'" 
+                                class="btn btn-sm flex-fill fw-bold fs-8">
+                            <i class="bi bi-arrow-left-right me-1"></i> Transfer Switching
+                            <span class="badge bg-white text-danger ms-1" x-text="readySwitchingsList.length"></span>
+                        </button>
+                    </div>
+
+                    <!-- Section 1: Order / Switching Selection & Info Box -->
                     <div class="border rounded-2 p-3 bg-body-tertiary">
-                        <div class="fw-bold text-danger text-uppercase fs-9 mb-2">1. Paket Order yang Diberangkatkan</div>
-                        
-                        <template x-if="readyOrdersList.length === 0">
-                            <div class="alert alert-warning py-2 px-3 fs-8 mb-0" role="alert">
-                                <i class="bi bi-exclamation-circle me-1"></i> Tidak ada order dengan status READY_TO_SHIP yang siap diterbitkan manifest.
+                        <!-- ORDER FORM -->
+                        <template x-if="dispatchType === 'order'">
+                            <div>
+                                <div class="fw-bold text-danger text-uppercase fs-9 mb-2">1. Paket Order yang Diberangkatkan</div>
+                                
+                                <template x-if="readyOrdersList.length === 0">
+                                    <div class="alert alert-warning py-2 px-3 fs-8 mb-0" role="alert">
+                                        <i class="bi bi-exclamation-circle me-1"></i> Tidak ada order dengan status READY_TO_SHIP yang siap diterbitkan manifest.
+                                    </div>
+                                </template>
+
+                                <template x-if="readyOrdersList.length > 0">
+                                    <div>
+                                        <label class="form-label fs-8 fw-semibold mb-1">Pilih Nomor Order <span class="text-danger">*</span></label>
+                                        <select name="order_id" :required="dispatchType === 'order'" @change="onOrderSelect($event)" class="form-select form-select-sm fs-8 mb-2">
+                                            <template x-for="ord in readyOrdersList" :key="ord.id">
+                                                <option :value="ord.id" 
+                                                        :selected="selectedOrder && selectedOrder.id == ord.id"
+                                                        x-text="ord.order_number + ' - ' + (ord.requesting_organization?.name || '-')">
+                                                </option>
+                                            </template>
+                                        </select>
+
+                                        <div class="bg-body p-2.5 rounded border fs-8">
+                                            <div class="row g-1.5">
+                                                <div class="col-6">
+                                                    <span class="fs-9 text-secondary d-block">Tujuan Cabang:</span>
+                                                    <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.name || '-'"></span>
+                                                </div>
+                                                <div class="col-6">
+                                                    <span class="fs-9 text-secondary d-block">Kota Tujuan:</span>
+                                                    <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.city || '-'"></span>
+                                                </div>
+                                                <div class="col-12 mt-1 pt-1 border-top">
+                                                    <span class="fs-9 text-secondary d-block">Alamat Pengiriman:</span>
+                                                    <span class="text-body fs-9" x-text="selectedOrder?.requesting_organization?.address || '-'"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
                             </div>
                         </template>
 
-                        <template x-if="readyOrdersList.length > 0">
+                        <!-- SWITCHING STOCK FORM -->
+                        <template x-if="dispatchType === 'switching'">
                             <div>
-                                <label class="form-label fs-8 fw-semibold mb-1">Pilih Nomor Order <span class="text-danger">*</span></label>
-                                <select name="order_id" @change="onOrderSelect($event)" class="form-select form-select-sm fs-8 mb-2" required>
-                                    <template x-for="ord in readyOrdersList" :key="ord.id">
-                                        <option :value="ord.id" 
-                                                :selected="selectedOrder && selectedOrder.id == ord.id"
-                                                x-text="ord.order_number + ' - ' + (ord.requesting_organization?.name || '-')">
-                                        </option>
-                                    </template>
-                                </select>
+                                <div class="fw-bold text-info-emphasis text-uppercase fs-9 mb-2">1. Transfer Switching Stock yang Diberangkatkan</div>
+                                
+                                <template x-if="readySwitchingsList.length === 0">
+                                    <div class="alert alert-warning py-2 px-3 fs-8 mb-0" role="alert">
+                                        <i class="bi bi-exclamation-circle me-1"></i> Tidak ada pengajuan switching stock (APPROVED/RESERVED) yang siap dikirim.
+                                    </div>
+                                </template>
 
-                                <div class="bg-body p-2.5 rounded border fs-8">
-                                    <div class="row g-1.5">
-                                        <div class="col-6">
-                                            <span class="fs-9 text-secondary d-block">Tujuan Cabang:</span>
-                                            <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.name || '-'"></span>
-                                        </div>
-                                        <div class="col-6">
-                                            <span class="fs-9 text-secondary d-block">Kota Tujuan:</span>
-                                            <span class="fw-semibold text-body" x-text="selectedOrder?.requesting_organization?.city || '-'"></span>
-                                        </div>
-                                        <div class="col-12 mt-1 pt-1 border-top">
-                                            <span class="fs-9 text-secondary d-block">Alamat Pengiriman:</span>
-                                            <span class="text-body fs-9" x-text="selectedOrder?.requesting_organization?.address || '-'"></span>
+                                <template x-if="readySwitchingsList.length > 0">
+                                    <div>
+                                        <label class="form-label fs-8 fw-semibold mb-1">Pilih Switching Stock <span class="text-danger">*</span></label>
+                                        <select name="switching_stock_id" :required="dispatchType === 'switching'" @change="onSwitchingSelect($event)" class="form-select form-select-sm fs-8 mb-2">
+                                            <template x-for="sw in readySwitchingsList" :key="sw.id">
+                                                <option :value="sw.id" 
+                                                        :selected="selectedSwitching && selectedSwitching.id == sw.id"
+                                                        x-text="'Switching #' + sw.id + ' (' + (sw.source_warehouse?.name || 'Gudang') + ' -> ' + (sw.destination_organization?.name || '-') + ')'">
+                                                </option>
+                                            </template>
+                                        </select>
+
+                                        <div class="bg-body p-2.5 rounded border fs-8">
+                                            <div class="row g-1.5">
+                                                <div class="col-6">
+                                                    <span class="fs-9 text-secondary d-block">Gudang Pengirim (Asal):</span>
+                                                    <span class="fw-semibold text-body" x-text="(selectedSwitching?.source_warehouse?.name || '-') + ' (' + (selectedSwitching?.source_organization?.name || '-') + ')'"></span>
+                                                </div>
+                                                <div class="col-6">
+                                                    <span class="fs-9 text-secondary d-block">Unit & Gudang Penerima:</span>
+                                                    <span class="fw-semibold text-body" x-text="(selectedSwitching?.destination_organization?.name || '-') + ' - ' + (selectedSwitching?.destination_warehouse?.name || '-')"></span>
+                                                </div>
+                                                <div class="col-6 mt-1 pt-1 border-top">
+                                                    <span class="fs-9 text-secondary d-block">Kota Tujuan:</span>
+                                                    <span class="text-body fs-9" x-text="selectedSwitching?.destination_organization?.city || '-'"></span>
+                                                </div>
+                                                <div class="col-6 mt-1 pt-1 border-top">
+                                                    <span class="fs-9 text-secondary d-block">Total Muatan:</span>
+                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace" x-text="(selectedSwitching?.total_qty || 0) + ' Unit (' + (selectedSwitching?.total_items_count || 0) + ' SKU)'"></span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                </template>
                             </div>
                         </template>
                     </div>
@@ -497,7 +720,7 @@
                         Batal
                     </button>
                     <button type="submit" 
-                            :disabled="readyOrdersList.length === 0"
+                            :disabled="(dispatchType === 'order' && readyOrdersList.length === 0) || (dispatchType === 'switching' && readySwitchingsList.length === 0)"
                             class="btn btn-sm btn-danger fw-bold fs-8 shadow-xs d-inline-flex align-items-center gap-1">
                         <i class="bi bi-send-check"></i>
                         <span>Terbitkan Manifest & Dispatch</span>
@@ -538,12 +761,16 @@
                             <span class="fw-semibold text-body" x-text="selectedShipment?.created_at"></span>
                         </div>
                         <div class="col-6">
-                            <span class="fs-9 text-secondary d-block">Nomor Order:</span>
+                            <span class="fs-9 text-secondary d-block">Nomor Order / Ref:</span>
                             <span class="font-monospace fw-semibold text-body" x-text="selectedShipment?.order_number"></span>
                         </div>
                         <div class="col-6">
                             <span class="fs-9 text-secondary d-block">Tujuan Cabang:</span>
                             <span class="fw-semibold text-body" x-text="selectedShipment?.branch_name"></span>
+                        </div>
+                        <div class="col-6" x-show="selectedShipment?.is_switching">
+                            <span class="fs-9 text-secondary d-block">Gudang Pengirim (Asal):</span>
+                            <span class="fw-semibold text-body" x-text="selectedShipment?.origin_warehouse"></span>
                         </div>
                         <div class="col-6">
                             <span class="fs-9 text-secondary d-block">Ekspedisi / Kurir:</span>

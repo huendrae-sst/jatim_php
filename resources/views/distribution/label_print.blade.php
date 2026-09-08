@@ -44,11 +44,18 @@
             <div id="qrcode" class="p-1 bg-white border border-slate-300 rounded"></div>
         </div>
 
+        @php
+            $destOrg = $shipment->order->requestingOrganization ?? $shipment->switchingStock->destinationOrganization ?? $shipment->destinationOrganization ?? null;
+            $destWh = $shipment->switchingStock->destinationWarehouse ?? null;
+        @endphp
         <div class="bg-slate-50 p-3 rounded border border-slate-200 text-xs space-y-1">
             <div class="text-[10px] font-bold uppercase text-slate-400">Penerima:</div>
-            <div class="font-black text-sm text-slate-900">{{ $shipment->order->requestingOrganization->name }}</div>
-            <div class="text-slate-600">{{ $shipment->order->requestingOrganization->address }}</div>
-            <div class="text-[11px] text-slate-500 font-semibold">Kota: {{ $shipment->order->requestingOrganization->city }}</div>
+            <div class="font-black text-sm text-slate-900">{{ $destOrg->name ?? '-' }}</div>
+            @if($destWh)
+                <div class="text-[11px] font-semibold text-slate-700">Gudang: {{ $destWh->name }}</div>
+            @endif
+            <div class="text-slate-600">{{ $destOrg->address ?? '-' }}</div>
+            <div class="text-[11px] text-slate-500 font-semibold">Kota: {{ $destOrg->city ?? '-' }}</div>
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-center text-xs font-bold">

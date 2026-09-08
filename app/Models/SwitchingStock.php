@@ -15,6 +15,8 @@ class SwitchingStock extends Model
 
     protected $casts = [
         'qty_requested' => 'integer',
+        'transferred_at' => 'datetime',
+        'received_at' => 'datetime',
     ];
 
     public function items(): HasMany
@@ -82,5 +84,25 @@ class SwitchingStock extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function transferredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'transferred_by_user_id');
+    }
+
+    public function receivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'received_by_user_id');
+    }
+
+    public function shipment(): BelongsTo
+    {
+        return $this->belongsTo(Shipment::class);
+    }
+
+    public function receivings(): HasMany
+    {
+        return $this->hasMany(Receiving::class);
     }
 }
