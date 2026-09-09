@@ -170,21 +170,20 @@ class OrderApprovalWorkflowTest extends TestCase
         $this->assertDatabaseHas('orders', ['id' => $order->id]);
     }
 
-    public function test_orders_page_contains_searchable_item_dropdowns(): void
+    public function test_orders_page_contains_item_dropdowns(): void
     {
         $user = User::where('role', 'SUPER_ADMIN')->first();
 
         $response = $this->actingAs($user)->get(route('orders.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('filteredItems');
-        $response->assertSee('sCreateInput');
-        $response->assertSee('searchable-item-option');
+        $response->assertSee('-- Pilih Barang / Item --');
+        $response->assertSee("it.name + ' [' + it.sku + '] (' + it.uom + ')'", false);
 
         $createResponse = $this->actingAs($user)->get(route('orders.create'));
         $createResponse->assertStatus(200);
-        $createResponse->assertSee('filteredItems');
-        $createResponse->assertSee('sInput');
+        $createResponse->assertSee('-- Pilih Barang / Item --');
+        $createResponse->assertSee("it.name + ' [' + it.sku + '] (' + it.uom + ')'", false);
     }
 
     public function test_orders_page_contains_filter_toolbar_matching_master_items(): void

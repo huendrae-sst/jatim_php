@@ -90,103 +90,35 @@
                         </button>
                     </div>
 
-                    <div class="table-responsive border rounded-3" style="overflow: visible;">
-                        <table class="table table-hover align-middle mb-0 fs-7">
-                            <thead class="border-bottom fs-8 text-uppercase text-secondary bg-body-tertiary">
+                    <div class="table-responsive border rounded bg-body mb-2" style="max-height: 280px; overflow-y: auto;">
+                        <table class="table table-sm table-hover align-middle mb-0 fs-8">
+                            <thead class="table-light text-secondary fs-9 text-uppercase sticky-top">
                                 <tr>
-                                    <th class="ps-3">Item / SKU Barang</th>
-                                    <th class="text-center" style="width: 160px;">Jumlah (Qty)</th>
-                                    <th class="text-center" style="width: 70px;">Hapus</th>
+                                    <th class="ps-3 py-1.5">Pilih Barang / Item</th>
+                                    <th class="text-center py-1.5" style="width: 160px;">Jumlah (Qty)</th>
+                                    <th class="text-center py-1.5" style="width: 45px;">Hapus</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <template x-for="(row, index) in rows" :key="index">
                                     <tr>
-                                        <td class="ps-3">
-                                            <div class="position-relative" 
-                                                 x-data="{
-                                                     open: false,
-                                                     search: '',
-                                                     get selectedItem() {
-                                                         return itemsCatalog.find(i => i.id == row.item_id) || null;
-                                                     },
-                                                     get filteredItems() {
-                                                         if (!this.search.trim()) return itemsCatalog;
-                                                         let q = this.search.toLowerCase();
-                                                         return itemsCatalog.filter(i => 
-                                                             (i.name && i.name.toLowerCase().includes(q)) || 
-                                                             (i.sku && i.sku.toLowerCase().includes(q)) ||
-                                                             (i.uom && i.uom.toLowerCase().includes(q))
-                                                         );
-                                                     },
-                                                     select(cat) {
-                                                         row.item_id = cat.id;
-                                                         this.open = false;
-                                                         this.search = '';
-                                                     }
-                                                 }" 
-                                                 :style="open ? 'z-index: 1060;' : 'z-index: 1;'" 
-                                                 @click.outside="open = false" 
-                                                 @keydown.escape.window="open = false">
-
-                                                <button type="button" 
-                                                        @click="open = !open; if(open) { $nextTick(() => $refs.sInput?.focus()); }" 
-                                                        class="form-select fs-7 text-start d-flex align-items-center justify-content-between text-truncate bg-body" 
-                                                        :class="row.item_id ? 'text-body' : 'text-secondary'">
-                                                    <span class="text-truncate" x-text="selectedItem ? (selectedItem.sku + ' - ' + selectedItem.name + ' (' + selectedItem.uom + ')') : 'Pilih Barang dari Katalog...'"></span>
-                                                </button>
-                                                <input type="hidden" :name="'items[' + index + '][item_id]'" :value="row.item_id" required>
-
-                                                <div x-show="open" 
-                                                     x-cloak 
-                                                     class="position-absolute start-0 mt-1 w-100 bg-body border border-secondary-subtle rounded-3 shadow-lg p-2" 
-                                                     style="z-index: 1060; min-width: 280px;">
-                                                    <div class="input-group input-group-sm mb-2">
-                                                        <span class="input-group-text bg-body text-secondary border-end-0 py-1 px-2">
-                                                            <i class="bi bi-search"></i>
-                                                        </span>
-                                                        <input type="text" 
-                                                               x-ref="sInput" 
-                                                               x-model="search" 
-                                                               class="form-control form-control-sm border-start-0 fs-8 py-1" 
-                                                               autocomplete="off" 
-                                                               @keydown.enter.prevent="if (filteredItems.length > 0) select(filteredItems[0])">
-                                                        <button type="button" 
-                                                                x-show="search" 
-                                                                @click="search = ''; $refs.sInput.focus()" 
-                                                                class="btn btn-sm btn-outline-secondary border-start-0 py-0 px-2 fs-9">
-                                                            <i class="bi bi-x"></i>
-                                                        </button>
-                                                    </div>
-                                                    <div class="overflow-y-auto" style="max-height: 180px;">
-                                                        <template x-for="cat in filteredItems" :key="cat.id">
-                                                            <div @click="select(cat)" 
-                                                                 class="p-2 rounded-2 searchable-item-option border-bottom border-light-subtle d-flex flex-column gap-0.5" 
-                                                                 :class="cat.id == row.item_id ? 'bg-danger-subtle text-danger-emphasis' : ''" 
-                                                                 role="button">
-                                                                <div class="d-flex align-items-center justify-content-between gap-1">
-                                                                    <span class="fw-semibold fs-8 text-truncate" x-text="cat.name"></span>
-                                                                    <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-9" x-text="cat.sku"></span>
-                                                                </div>
-                                                                <div class="d-flex align-items-center justify-content-between text-secondary fs-9">
-                                                                    <span x-text="'Satuan: ' + cat.uom"></span>
-                                                                    <span class="font-monospace" x-text="cat.estimated_unit_price ? ('Rp ' + Number(cat.estimated_unit_price).toLocaleString('id-ID')) : ''"></span>
-                                                                </div>
-                                                            </div>
-                                                        </template>
-                                                        <div x-show="filteredItems.length === 0" class="text-center py-3 text-secondary fs-8">
-                                                            <i class="bi bi-inbox me-1"></i> Tidak ada barang yang cocok
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <td class="ps-3 py-1.5">
+                                            <select :name="'items[' + index + '][item_id]'" 
+                                                    x-model="row.item_id" 
+                                                    class="form-select form-select-sm" 
+                                                    required>
+                                                <option value="">-- Pilih Barang / Item --</option>
+                                                <template x-for="it in itemsCatalog" :key="it.id">
+                                                    <option :value="it.id" x-text="it.name + ' [' + it.sku + '] (' + it.uom + ')'"></option>
+                                                </template>
+                                            </select>
                                         </td>
-                                        <td>
-                                            <input type="number" :name="'items[' + index + '][qty]'" x-model="row.qty" min="1" required class="form-control form-control-sm text-center fw-bold font-monospace fs-7">
+                                        <td class="text-center py-1.5">
+                                            <input type="number" :name="'items[' + index + '][qty]'" x-model.number="row.qty" min="1" required class="form-control form-control-sm text-center font-monospace fw-bold fs-8">
                                         </td>
-                                        <td class="text-center">
-                                            <button type="button" @click="removeRow(index)" class="btn-action-icon text-danger" title="Hapus Baris">
-                                                <i class="bi bi-trash"></i>
+                                        <td class="text-center py-1.5">
+                                            <button type="button" @click="removeRow(index)" :disabled="rows.length <= 1" class="btn btn-sm text-danger py-0 px-1" title="Hapus baris barang">
+                                                <i class="bi bi-trash fs-8"></i>
                                             </button>
                                         </td>
                                     </tr>

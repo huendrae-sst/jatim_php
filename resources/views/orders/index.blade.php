@@ -14,25 +14,21 @@
     createRows: [],
     createTotal: 0,
     openCreateModal() {
-        let first = this.itemsCatalog[0];
-        let p = first ? parseFloat(first.estimated_unit_price || 0) : 0;
         this.createRows = [{
-            item_id: first ? first.id : '',
+            item_id: '',
             qty: 1,
-            price: p,
-            subtotal: p
+            price: 0,
+            subtotal: 0
         }];
         this.recalculateCreateTotal();
         this.createModal = true;
     },
     addCreateRow() {
-        let first = this.itemsCatalog[0];
-        let p = first ? parseFloat(first.estimated_unit_price || 0) : 0;
         this.createRows.push({
-            item_id: first ? first.id : '',
+            item_id: '',
             qty: 1,
-            price: p,
-            subtotal: p
+            price: 0,
+            subtotal: 0
         });
         this.recalculateCreateTotal();
     },
@@ -123,13 +119,11 @@
                 };
             });
         } else {
-            let first = this.itemsCatalog[0];
-            let p = first ? parseFloat(first.estimated_unit_price || 0) : 0;
             mappedItems = [{
-                item_id: first ? first.id : '',
+                item_id: '',
                 qty: 1,
-                price: p,
-                subtotal: p
+                price: 0,
+                subtotal: 0
             }];
         }
 
@@ -154,13 +148,11 @@
         this.editModal = true;
     },
     addItemRow() {
-        let first = this.itemsCatalog[0];
-        let p = first ? parseFloat(first.estimated_unit_price || 0) : 0;
         this.editOrder.items.push({
-            item_id: first ? first.id : '',
+            item_id: '',
             qty: 1,
-            price: p,
-            subtotal: p
+            price: 0,
+            subtotal: 0
         });
         this.recalculateTotal();
     },
@@ -600,119 +592,51 @@
                             </button>
                         </div>
 
-                        <div class="table-responsive rounded border border-secondary-subtle" style="overflow: visible;">
+                        <div class="table-responsive border rounded bg-body mb-2" style="max-height: 220px; overflow-y: auto;">
                             <table class="table table-sm table-hover align-middle mb-0 fs-8">
-                                <thead class="bg-body-tertiary text-secondary sticky-top">
+                                <thead class="table-light text-secondary fs-9 text-uppercase sticky-top">
                                     <tr>
-                                        <th class="ps-3">Nama / SKU Barang</th>
-                                        <th class="text-center" style="width: 110px;">Jumlah (Qty)</th>
-                                        <th class="text-end" style="width: 140px;">Subtotal Ref</th>
-                                        <th class="text-center" style="width: 50px;">Aksi</th>
+                                        <th class="ps-3 py-1.5">Pilih Barang / Item</th>
+                                        <th class="text-center py-1.5" style="width: 140px;">Jumlah (Qty)</th>
+                                        <th class="text-end py-1.5" style="width: 140px;">Subtotal Ref</th>
+                                        <th class="text-center py-1.5" style="width: 45px;">Hapus</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <template x-for="(row, index) in createRows" :key="index">
                                         <tr>
-                                            <td class="ps-3">
-                                                <div class="position-relative" 
-                                                     x-data="{
-                                                         open: false,
-                                                         search: '',
-                                                         get selectedItem() {
-                                                             return itemsCatalog.find(i => i.id == row.item_id) || null;
-                                                         },
-                                                         get filteredItems() {
-                                                             if (!this.search.trim()) return itemsCatalog;
-                                                             let q = this.search.toLowerCase();
-                                                             return itemsCatalog.filter(i => 
-                                                                 (i.name && i.name.toLowerCase().includes(q)) || 
-                                                                 (i.sku && i.sku.toLowerCase().includes(q)) ||
-                                                                 (i.uom && i.uom.toLowerCase().includes(q))
-                                                             );
-                                                         },
-                                                         select(cat) {
-                                                             row.item_id = cat.id;
-                                                             onCreateItemChange(index);
-                                                             this.open = false;
-                                                             this.search = '';
-                                                         }
-                                                     }" 
-                                                     :style="open ? 'z-index: 1060;' : 'z-index: 1;'" 
-                                                     @click.outside="open = false" 
-                                                     @keydown.escape.window="open = false">
-
-                                                    <button type="button" 
-                                                            @click="open = !open; if(open) { $nextTick(() => $refs.sCreateInput?.focus()); }" 
-                                                            class="form-select form-select-sm fs-8 text-start d-flex align-items-center justify-content-between text-truncate bg-body" 
-                                                            :class="row.item_id ? 'text-body' : 'text-secondary'">
-                                                        <span class="text-truncate" x-text="selectedItem ? (selectedItem.sku + ' - ' + selectedItem.name + ' (' + selectedItem.uom + ')') : 'Pilih Barang...'"></span>
-                                                    </button>
-                                                    <input type="hidden" :name="'items[' + index + '][item_id]'" :value="row.item_id" required>
-
-                                                    <div x-show="open" 
-                                                         x-cloak 
-                                                         class="position-absolute start-0 mt-1 w-100 bg-body border border-secondary-subtle rounded-3 shadow-lg p-2" 
-                                                         style="z-index: 1060; min-width: 280px;">
-                                                        <div class="input-group input-group-sm mb-2">
-                                                            <span class="input-group-text bg-body text-secondary border-end-0 py-1 px-2">
-                                                                <i class="bi bi-search"></i>
-                                                            </span>
-                                                            <input type="text" 
-                                                                   x-ref="sCreateInput" 
-                                                                   x-model="search" 
-                                                                   class="form-control form-control-sm border-start-0 fs-8 py-1" 
-                                                                   autocomplete="off" 
-                                                                   @keydown.enter.prevent="if (filteredItems.length > 0) select(filteredItems[0])">
-                                                            <button type="button" 
-                                                                    x-show="search" 
-                                                                    @click="search = ''; $refs.sCreateInput.focus()" 
-                                                                    class="btn btn-sm btn-outline-secondary border-start-0 py-0 px-2 fs-9">
-                                                                <i class="bi bi-x"></i>
-                                                            </button>
-                                                        </div>
-                                                        <div class="overflow-y-auto" style="max-height: 180px;">
-                                                            <template x-for="cat in filteredItems" :key="cat.id">
-                                                                <div @click="select(cat)" 
-                                                                     class="p-2 rounded-2 searchable-item-option border-bottom border-light-subtle d-flex flex-column gap-0.5" 
-                                                                     :class="cat.id == row.item_id ? 'bg-danger-subtle text-danger-emphasis' : ''" 
-                                                                     role="button">
-                                                                    <div class="d-flex align-items-center justify-content-between gap-1">
-                                                                        <span class="fw-semibold fs-8 text-truncate" x-text="cat.name"></span>
-                                                                        <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-9" x-text="cat.sku"></span>
-                                                                    </div>
-                                                                    <div class="d-flex align-items-center justify-content-between text-secondary fs-9">
-                                                                        <span x-text="'Satuan: ' + cat.uom"></span>
-                                                                        <span class="font-monospace" x-text="'Harga Ref: ' + formatRupiah(cat.estimated_unit_price)"></span>
-                                                                    </div>
-                                                                </div>
-                                                            </template>
-                                                            <div x-show="filteredItems.length === 0" class="text-center py-3 text-secondary fs-8">
-                                                                <i class="bi bi-inbox me-1"></i> Tidak ada barang yang cocok
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <span class="fs-9 text-secondary font-monospace" x-text="'Harga Ref: ' + formatRupiah(row.price)"></span>
+                                            <td class="ps-3 py-1.5">
+                                                <select :name="'items[' + index + '][item_id]'" 
+                                                        x-model="row.item_id" 
+                                                        @change="onCreateItemChange(index)" 
+                                                        class="form-select form-select-sm" 
+                                                        required>
+                                                    <option value="">-- Pilih Barang / Item --</option>
+                                                    <template x-for="it in itemsCatalog" :key="it.id">
+                                                        <option :value="it.id" x-text="it.name + ' [' + it.sku + '] (' + it.uom + ')'"></option>
+                                                    </template>
+                                                </select>
+                                                <div class="fs-9 text-secondary font-monospace mt-1" x-show="row.item_id" x-text="'Harga Ref: ' + formatRupiah(row.price)"></div>
                                             </td>
-                                            <td class="text-center">
+                                            <td class="text-center py-1.5">
                                                 <input type="number" 
                                                        :name="'items[' + index + '][qty]'" 
-                                                       x-model="row.qty" 
+                                                       x-model.number="row.qty" 
                                                        @input="onCreateQtyChange(index)" 
                                                        min="1" 
                                                        required 
                                                        class="form-control form-control-sm text-center fw-bold font-monospace fs-8">
                                             </td>
-                                            <td class="text-end font-monospace pe-2">
+                                            <td class="text-end font-monospace pe-2 py-1.5">
                                                 <span class="fw-semibold text-body" x-text="formatRupiah(row.subtotal)"></span>
                                             </td>
-                                            <td class="text-center">
+                                            <td class="text-center py-1.5">
                                                 <button type="button" 
                                                         @click="removeCreateRow(index)" 
-                                                        class="btn-action-icon text-danger" 
                                                         :disabled="createRows.length <= 1" 
-                                                        title="Hapus Baris">
-                                                    <i class="bi bi-trash"></i>
+                                                        class="btn btn-sm text-danger py-0 px-1" 
+                                                        title="Hapus baris barang">
+                                                    <i class="bi bi-trash fs-8"></i>
                                                 </button>
                                             </td>
                                         </tr>
@@ -991,103 +915,35 @@
                             </template>
                         </div>
 
-                        <div class="table-responsive rounded border border-secondary-subtle" style="overflow: visible;">
+                        <div class="table-responsive border rounded bg-body mb-2" style="max-height: 220px; overflow-y: auto;">
                             <table class="table table-sm table-hover align-middle mb-0 fs-8">
-                                <thead class="bg-body-tertiary text-secondary sticky-top">
+                                <thead class="table-light text-secondary fs-9 text-uppercase sticky-top">
                                     <tr>
-                                        <th class="ps-3">Nama / SKU Barang</th>
-                                        <th class="text-center" style="width: 110px;">Jumlah (Qty)</th>
-                                        <th class="text-end" style="width: 130px;">Subtotal</th>
+                                        <th class="ps-3 py-1.5">Pilih Barang / Item</th>
+                                        <th class="text-center py-1.5" style="width: 140px;">Jumlah (Qty)</th>
+                                        <th class="text-end py-1.5" style="width: 140px;">Subtotal</th>
                                         <template x-if="editOrder.is_editable">
-                                            <th class="text-center" style="width: 50px;">Hapus</th>
+                                            <th class="text-center py-1.5" style="width: 45px;">Hapus</th>
                                         </template>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <template x-for="(item, index) in editOrder.items" :key="index">
                                         <tr>
-                                            <td class="ps-3">
+                                            <td class="ps-3 py-1.5">
                                                 <template x-if="editOrder.is_editable">
                                                     <div>
-                                                        <div class="position-relative" 
-                                                             x-data="{
-                                                                 open: false,
-                                                                 search: '',
-                                                                 get selectedItem() {
-                                                                     return itemsCatalog.find(i => i.id == item.item_id) || null;
-                                                                 },
-                                                                 get filteredItems() {
-                                                                     if (!this.search.trim()) return itemsCatalog;
-                                                                     let q = this.search.toLowerCase();
-                                                                     return itemsCatalog.filter(i => 
-                                                                         (i.name && i.name.toLowerCase().includes(q)) || 
-                                                                         (i.sku && i.sku.toLowerCase().includes(q)) ||
-                                                                         (i.uom && i.uom.toLowerCase().includes(q))
-                                                                     );
-                                                                 },
-                                                                 select(cat) {
-                                                                     item.item_id = cat.id;
-                                                                     onItemChange(index);
-                                                                     this.open = false;
-                                                                     this.search = '';
-                                                                 }
-                                                             }" 
-                                                             :style="open ? 'z-index: 1060;' : 'z-index: 1;'" 
-                                                             @click.outside="open = false" 
-                                                             @keydown.escape.window="open = false">
-
-                                                            <button type="button" 
-                                                                    @click="open = !open; if(open) { $nextTick(() => $refs.sEditInput?.focus()); }" 
-                                                                    class="form-select form-select-sm fs-8 text-start d-flex align-items-center justify-content-between text-truncate bg-body" 
-                                                                    :class="item.item_id ? 'text-body' : 'text-secondary'">
-                                                                <span class="text-truncate" x-text="selectedItem ? (selectedItem.sku + ' - ' + selectedItem.name + ' (' + selectedItem.uom + ')') : 'Pilih Barang...'"></span>
-                                                            </button>
-                                                            <input type="hidden" :name="'items[' + index + '][item_id]'" :value="item.item_id" required>
-
-                                                            <div x-show="open" 
-                                                                 x-cloak 
-                                                                 class="position-absolute start-0 mt-1 w-100 bg-body border border-secondary-subtle rounded-3 shadow-lg p-2" 
-                                                                 style="z-index: 1060; min-width: 280px;">
-                                                                <div class="input-group input-group-sm mb-2">
-                                                                    <span class="input-group-text bg-body text-secondary border-end-0 py-1 px-2">
-                                                                        <i class="bi bi-search"></i>
-                                                                    </span>
-                                                                    <input type="text" 
-                                                                           x-ref="sEditInput" 
-                                                                           x-model="search" 
-                                                                           class="form-control form-control-sm border-start-0 fs-8 py-1" 
-                                                                           autocomplete="off" 
-                                                                           @keydown.enter.prevent="if (filteredItems.length > 0) select(filteredItems[0])">
-                                                                    <button type="button" 
-                                                                            x-show="search" 
-                                                                            @click="search = ''; $refs.sEditInput.focus()" 
-                                                                            class="btn btn-sm btn-outline-secondary border-start-0 py-0 px-2 fs-9">
-                                                                        <i class="bi bi-x"></i>
-                                                                    </button>
-                                                                </div>
-                                                                <div class="overflow-y-auto" style="max-height: 180px;">
-                                                                    <template x-for="cat in filteredItems" :key="cat.id">
-                                                                        <div @click="select(cat)" 
-                                                                             class="p-2 rounded-2 searchable-item-option border-bottom border-light-subtle d-flex flex-column gap-0.5" 
-                                                                             :class="cat.id == item.item_id ? 'bg-danger-subtle text-danger-emphasis' : ''" 
-                                                                             role="button">
-                                                                            <div class="d-flex align-items-center justify-content-between gap-1">
-                                                                                <span class="fw-semibold fs-8 text-truncate" x-text="cat.name"></span>
-                                                                                <span class="badge bg-secondary-subtle text-secondary-emphasis font-monospace fs-9" x-text="cat.sku"></span>
-                                                                            </div>
-                                                                            <div class="d-flex align-items-center justify-content-between text-secondary fs-9">
-                                                                                <span x-text="'Satuan: ' + cat.uom"></span>
-                                                                                <span class="font-monospace" x-text="'Harga Ref: ' + formatRupiah(cat.estimated_unit_price)"></span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </template>
-                                                                    <div x-show="filteredItems.length === 0" class="text-center py-3 text-secondary fs-8">
-                                                                        <i class="bi bi-inbox me-1"></i> Tidak ada barang yang cocok
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <span class="fs-9 text-secondary font-monospace" x-text="'Harga Ref: ' + formatRupiah(item.price)"></span>
+                                                        <select :name="'items[' + index + '][item_id]'" 
+                                                                x-model="item.item_id" 
+                                                                @change="onItemChange(index)" 
+                                                                class="form-select form-select-sm" 
+                                                                required>
+                                                            <option value="">-- Pilih Barang / Item --</option>
+                                                            <template x-for="it in itemsCatalog" :key="it.id">
+                                                                <option :value="it.id" x-text="it.name + ' [' + it.sku + '] (' + it.uom + ')'"></option>
+                                                            </template>
+                                                        </select>
+                                                        <div class="fs-9 text-secondary font-monospace mt-1" x-show="item.item_id" x-text="'Harga Ref: ' + formatRupiah(item.price)"></div>
                                                     </div>
                                                 </template>
                                                 <template x-if="!editOrder.is_editable">
@@ -1097,11 +953,11 @@
                                                     </div>
                                                 </template>
                                             </td>
-                                            <td class="text-center">
+                                            <td class="text-center py-1.5">
                                                 <template x-if="editOrder.is_editable">
                                                     <input type="number" 
                                                            :name="'items[' + index + '][qty]'" 
-                                                           x-model="item.qty" 
+                                                           x-model.number="item.qty" 
                                                            @input="onQtyChange(index)" 
                                                            min="1" 
                                                            required 
@@ -1111,17 +967,17 @@
                                                     <span class="fw-bold font-monospace" x-text="item.qty"></span>
                                                 </template>
                                             </td>
-                                            <td class="text-end font-monospace pe-2">
+                                            <td class="text-end font-monospace pe-2 py-1.5">
                                                 <span class="fw-semibold text-body" x-text="formatRupiah(item.subtotal)"></span>
                                             </td>
                                             <template x-if="editOrder.is_editable">
-                                                <td class="text-center">
+                                                <td class="text-center py-1.5">
                                                     <button type="button" 
                                                             @click="removeItemRow(index)" 
-                                                            class="btn-action-icon text-danger" 
+                                                            class="btn btn-sm text-danger py-0 px-1" 
                                                             :disabled="editOrder.items.length <= 1" 
-                                                            title="Hapus Baris">
-                                                        <i class="bi bi-trash"></i>
+                                                            title="Hapus baris barang">
+                                                        <i class="bi bi-trash fs-8"></i>
                                                     </button>
                                                 </td>
                                             </template>
