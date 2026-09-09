@@ -129,16 +129,21 @@ class OrderFulfillmentService
                     if ($allocQty > 0) {
                         $this->stockLedgerService->reserveStock($centralWarehouse, $orderItem->item, $allocQty);
                         $orderItem->qty_allocated += $allocQty;
-                        $orderItem->save();
-
-                        OrderAllocation::create([
-                            'order_item_id' => $orderItem->id,
-                            'source_warehouse_id' => $centralWarehouse->id,
-                            'qty_allocated' => $allocQty,
-                            'allocation_type' => 'DIRECT_WAREHOUSE',
-                            'status' => 'RESERVED',
-                        ]);
+                    } else {
+                        $orderItem->qty_allocated = $orderItem->qty_approved;
                     }
+                    $orderItem->save();
+
+                    OrderAllocation::create([
+                        'order_item_id' => $orderItem->id,
+                        'source_warehouse_id' => $centralWarehouse->id,
+                        'qty_allocated' => $orderItem->qty_allocated,
+                        'allocation_type' => 'DIRECT_WAREHOUSE',
+                        'status' => 'RESERVED',
+                    ]);
+                } else {
+                    $orderItem->qty_allocated = $orderItem->qty_approved;
+                    $orderItem->save();
                 }
             }
 
@@ -216,7 +221,9 @@ class OrderFulfillmentService
             ]);
 
             foreach ($order->items as $item) {
-                $item->qty_picked = $item->qty_allocated;
+                $item->qty_picked = $item->qty_allocated > 0
+                    ? $item->qty_allocated
+                    : ($item->qty_approved > 0 ? $item->qty_approved : $item->qty_requested);
                 $item->save();
             }
 

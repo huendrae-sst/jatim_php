@@ -47,6 +47,33 @@ class LogisticsUiStandardizationTest extends TestCase
         $response->assertSessionHas('success');
     }
 
+    public function test_warehouse_picking_renders_delete_button_and_can_delete_order_returning_to_orders(): void
+    {
+        $user = User::where('role', 'SUPER_ADMIN')->first();
+        $order = Order::with('items')->whereHas('items')->first();
+        $this->assertNotNull($order);
+        $order->update(['status' => 'ALLOCATED']);
+
+        $item = $order->items->first();
+        $item->update(['qty_allocated' => 5, 'qty_approved' => 5]);
+
+        $response = $this->actingAs($user)->get(route('warehouse.picking.queue'));
+        $response->assertStatus(200);
+        $response->assertSee('openDeleteModal');
+        $response->assertSee('bi-trash', false);
+
+        $deleteResponse = $this->actingAs($user)->delete(route('warehouse.picking.destroy', $order->id));
+        $deleteResponse->assertRedirect(route('warehouse.picking.queue'));
+        $deleteResponse->assertSessionHas('success');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'SUBMITTED',
+        ]);
+        $this->assertEquals(0, $item->fresh()->qty_allocated);
+        $this->assertEquals(0, $item->fresh()->qty_approved);
+    }
+
     public function test_warehouse_packing_renders_consistent_ui(): void
     {
         $user = User::where('role', 'SUPER_ADMIN')->first();
@@ -80,6 +107,32 @@ class LogisticsUiStandardizationTest extends TestCase
         ]);
         $response->assertRedirect(route('warehouse.packing.queue'));
         $response->assertSessionHas('success');
+    }
+
+    public function test_warehouse_packing_renders_delete_button_and_can_delete_order(): void
+    {
+        $user = User::where('role', 'SUPER_ADMIN')->first();
+        $order = Order::with('items')->whereHas('items')->first();
+        $this->assertNotNull($order);
+        $order->update(['status' => 'PICKING']);
+
+        $item = $order->items->first();
+        $item->update(['qty_picked' => 5]);
+
+        $response = $this->actingAs($user)->get(route('warehouse.packing.queue'));
+        $response->assertStatus(200);
+        $response->assertSee('openDeleteModal');
+        $response->assertSee('bi-trash', false);
+
+        $deleteResponse = $this->actingAs($user)->delete(route('warehouse.packing.destroy', $order->id));
+        $deleteResponse->assertRedirect(route('warehouse.packing.queue'));
+        $deleteResponse->assertSessionHas('success');
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'ALLOCATED',
+        ]);
+        $this->assertEquals(0, $item->fresh()->qty_picked);
     }
 
     public function test_distribution_shipments_renders_consistent_ui(): void

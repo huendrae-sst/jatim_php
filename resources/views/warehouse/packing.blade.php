@@ -23,6 +23,15 @@
         this.selectedOrder = order;
         this.packActionUrl = '{{ url('warehouse/packing') }}/' + order.id + '/process';
         this.packModalOpen = true;
+    },
+
+    deleteModalOpen: false,
+    deleteActionUrl: '',
+
+    openDeleteModal(order) {
+        this.selectedOrder = order;
+        this.deleteActionUrl = '{{ url('warehouse/packing') }}/' + order.id;
+        this.deleteModalOpen = true;
     }
 }" class="space-y-4">
 
@@ -129,9 +138,11 @@
                 <tbody>
                     @forelse($pickingOrders as $ord)
                         @php
-                            $totalPicked = $ord->items->sum('qty_picked');
+                            $itemPicked = fn($it) => $it->qty_picked > 0 ? $it->qty_picked : ($it->qty_allocated > 0 ? $it->qty_allocated : ($it->qty_approved > 0 ? $it->qty_approved : $it->qty_requested));
+                            $totalPicked = $ord->items->sum($itemPicked);
                             $itemsCount = $ord->items->count();
                             $firstItem = $ord->items->first()?->item;
+                            $firstItemPicked = $ord->items->first() ? $itemPicked($ord->items->first()) : 0;
                             $ordData = [
                                 'id' => $ord->id,
                                 'order_number' => $ord->order_number,
@@ -149,7 +160,7 @@
                                     'item_name' => $it->item->name ?? '-',
                                     'sku' => $it->item->sku ?? '-',
                                     'uom' => $it->item->uom ?? 'Unit',
-                                    'qty_picked' => $it->qty_picked,
+                                    'qty_picked' => $itemPicked($it),
                                 ])->values()->all(),
                                 'total_picked' => $totalPicked,
                             ];
@@ -177,12 +188,12 @@
                                             {{ $itemsCount }} Jenis Barang
                                         </span>
                                     </div>
-                                    <div class="fs-9 text-secondary text-truncate" style="max-width: 300px;" title="{{ $ord->items->map(fn($i) => ($i->item->name ?? '-') . ' (' . $i->qty_picked . ' ' . ($i->item->uom ?? '') . ')')->implode(', ') }}">
-                                        {{ $ord->items->take(2)->map(fn($i) => ($i->item->name ?? '-') . ' (' . $i->qty_picked . ' ' . ($i->item->uom ?? '') . ')')->implode(', ') }}{{ $itemsCount > 2 ? ', +' . ($itemsCount - 2) . ' lainnya' : '' }}
+                                    <div class="fs-9 text-secondary text-truncate" style="max-width: 300px;" title="{{ $ord->items->map(fn($i) => ($i->item->name ?? '-') . ' (' . $itemPicked($i) . ' ' . ($i->item->uom ?? '') . ')')->implode(', ') }}">
+                                        {{ $ord->items->take(2)->map(fn($i) => ($i->item->name ?? '-') . ' (' . $itemPicked($i) . ' ' . ($i->item->uom ?? '') . ')')->implode(', ') }}{{ $itemsCount > 2 ? ', +' . ($itemsCount - 2) . ' lainnya' : '' }}
                                     </div>
                                 @elseif($firstItem)
                                     <div class="fw-bold text-body">{{ $firstItem->name }}</div>
-                                    <div class="fs-9 text-secondary font-monospace">{{ $firstItem->sku }} • {{ $ord->items->first()->qty_picked }} {{ $firstItem->uom }}</div>
+                                    <div class="fs-9 text-secondary font-monospace">{{ $firstItem->sku }} • {{ $firstItemPicked }} {{ $firstItem->uom }}</div>
                                 @else
                                     <span class="text-secondary">-</span>
                                 @endif
@@ -212,6 +223,14 @@
                                             class="btn-action-icon text-danger btn btn-sm btn-outline-danger py-0.5 px-1.5 fs-9 fw-bold" 
                                             title="Input Koli & Selesaikan Packing">
                                         <i class="bi bi-box-seam"></i>
+                                    </button>
+
+                                    <!-- Delete Action Modal Button -->
+                                    <button type="button" 
+                                            @click="openDeleteModal({{ json_encode($ordData) }})" 
+                                            class="btn btn-sm btn-outline-danger py-0.5 px-1.5 fs-9" 
+                                            title="Hapus Order dari Antrean">
+                                        <i class="bi bi-trash"></i>
                                     </button>
                                 </div>
                             </td>
@@ -404,6 +423,61 @@
                     <button type="submit" class="btn btn-sm btn-danger fw-bold fs-8 shadow-xs d-inline-flex align-items-center gap-1">
                         <i class="bi bi-check2-circle"></i>
                         <span>Selesaikan Packing (Ready to Ship)</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- MODAL 3: KONFIRMASI HAPUS DARI PACKING (KEMBALI KE PICKING)-->
+    <!-- ======================================================== -->
+    <div x-show="deleteModalOpen" 
+         class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 p-md-4" 
+         x-cloak 
+         style="display: none; z-index: 1050;">
+        <div @click.away="deleteModalOpen = false" 
+             class="card shadow-2xl border border-danger-subtle max-w-md w-full overflow-hidden" 
+             style="background-color: var(--bs-body-bg); color: var(--bs-body-color);">
+            
+            <div class="card-header bg-danger text-white py-2 px-4 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-arrow-counterclockwise fs-6"></i>
+                    <h5 class="modal-title fs-6 fw-bold mb-0">Hapus dari Antrean Packing</h5>
+                </div>
+                <button type="button" @click="deleteModalOpen = false" class="btn-close btn-close-white" aria-label="Close"></button>
+            </div>
+
+            <form :action="deleteActionUrl" method="POST">
+                @csrf
+                @method('DELETE')
+                <div class="card-body p-3.5 space-y-3">
+                    <p class="text-body mb-0 fs-8">
+                        Apakah Anda yakin ingin membatalkan pengepakan untuk order berikut?
+                    </p>
+
+                    <div class="p-2.5 rounded-3 bg-body-secondary border border-secondary-subtle">
+                        <div class="fs-9 text-secondary mb-0.5">Nomor & Unit Pemohon:</div>
+                        <div class="font-monospace fw-bold text-danger fs-7" x-text="selectedOrder?.order_number"></div>
+                        <div class="fs-8 text-body fw-semibold" x-text="selectedOrder?.requesting_organization?.name"></div>
+                        <div class="fs-9 text-secondary font-monospace" x-text="selectedOrder?.total_picked + ' Unit Fisik'"></div>
+                    </div>
+
+                    <div class="alert alert-warning py-2 px-3 fs-8 mb-0 d-flex align-items-start gap-2">
+                        <i class="bi bi-arrow-counterclockwise text-warning fs-6 flex-shrink-0 mt-0.5"></i>
+                        <div>
+                            Order ini akan dibatalkan dari proses pengepakan dan dikembalikan ke <strong>antrean picking</strong> (pengambilan barang gudang).
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-footer bg-body-tertiary d-flex justify-content-end align-items-center gap-2 py-2.5 px-4 border-top">
+                    <button type="button" @click="deleteModalOpen = false" class="btn btn-sm btn-outline-secondary px-3 fs-8">
+                        Batal
+                    </button>
+                    <button type="submit" class="btn btn-sm btn-danger fw-bold px-3 fs-8 shadow-xs d-inline-flex align-items-center gap-1">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                        <span>Kembalikan ke Picking</span>
                     </button>
                 </div>
             </form>

@@ -582,7 +582,7 @@ class DatabaseSeeder extends Seeder
                     'qty_requested' => $itRow['qty'],
                     'qty_approved' => $allocated,
                     'qty_allocated' => $allocated,
-                    'qty_picked' => in_array($ol['status'], ['PACKING', 'READY_TO_SHIP', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED']) ? $itRow['qty'] : 0,
+                    'qty_picked' => in_array($ol['status'], ['PACKING', 'PICKING', 'READY_TO_SHIP', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED']) ? $itRow['qty'] : 0,
                     'qty_packed' => in_array($ol['status'], ['READY_TO_SHIP', 'IN_TRANSIT', 'RECEIVED', 'COMPLETED']) ? $itRow['qty'] : 0,
                     'qty_shipped' => in_array($ol['status'], ['IN_TRANSIT', 'RECEIVED', 'COMPLETED']) ? $itRow['qty'] : 0,
                     'qty_received' => in_array($ol['status'], ['RECEIVED', 'COMPLETED']) ? $itRow['qty'] : 0,

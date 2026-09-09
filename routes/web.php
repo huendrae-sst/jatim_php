@@ -83,8 +83,10 @@ Route::middleware('auth')->group(function () {
     Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/picking', [WarehouseController::class, 'pickingQueue'])->name('picking.queue');
         Route::post('/picking/{id}/process', [WarehouseController::class, 'processPicking'])->name('picking.process');
+        Route::delete('/picking/{id}', [WarehouseController::class, 'destroyPicking'])->name('picking.destroy');
         Route::get('/packing', [WarehouseController::class, 'packingQueue'])->name('packing.queue');
         Route::post('/packing/{id}/process', [WarehouseController::class, 'processPacking'])->name('packing.process');
+        Route::delete('/packing/{id}', [WarehouseController::class, 'destroyPacking'])->name('packing.destroy');
     });
 
     // Workflow 2: Distribution & Ekspedisi
