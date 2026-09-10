@@ -11,8 +11,10 @@ use App\Models\PurchaseRequestItem;
 use App\Models\Vendor;
 use App\Models\Warehouse;
 use App\Services\AuditTrailService;
+use App\Services\EarlyWarningService;
 use App\Services\ProcurementService;
 use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +22,8 @@ use Illuminate\Support\Facades\DB;
 class ProcurementController extends Controller
 {
     public function __construct(
-        protected ProcurementService $procurementService
+        protected ProcurementService $procurementService,
+        protected EarlyWarningService $earlyWarningService
     ) {}
 
     public function prIndex(Request $request)
@@ -105,6 +108,66 @@ class ProcurementController extends Controller
             'itemsCatalog',
             'organizations'
         ));
+    }
+
+    public function ewsItems(Request $request): JsonResponse
+    {
+        $user = Auth::user();
+        $isBranch = $user && $user->isBranchUser() && $user->organization_id;
+
+        $request->validate([
+            'organization_id' => 'required|exists:organizations,id',
+        ], [
+            'organization_id.required' => 'Unit kerja wajib dipilih.',
+            'organization_id.exists' => 'Unit kerja tidak ditemukan.',
+        ]);
+
+        $orgId = $isBranch ? (int) $user->organization_id : (int) $request->organization_id;
+
+        $warehouse = Warehouse::where('organization_id', $orgId)->where('is_active', true)->first();
+        $warehouseId = $warehouse?->id;
+
+        $evaluations = $this->earlyWarningService->getAllEvaluations($warehouseId);
+
+        $alertTypes = ['CRITICAL_STOCKOUT', 'HIGH_REORDER'];
+        $items = [];
+
+        foreach ($evaluations as $eval) {
+            $hasAlert = in_array('CRITICAL_STOCKOUT', $eval['alerts'] ?? [], true)
+                || in_array('HIGH_REORDER', $eval['alerts'] ?? [], true)
+                || in_array($eval['primary_alert'] ?? '', $alertTypes, true);
+
+            if ($hasAlert) {
+                $qty = (int) ($eval['suggested_reorder_qty'] ?? 0);
+                if ($qty <= 0) {
+                    $maxStock = (int) ($eval['max_stock'] ?? 0);
+                    $available = (int) ($eval['available'] ?? 0);
+                    $qty = max(20, $maxStock - $available);
+                }
+
+                $items[] = [
+                    'item_id' => $eval['item_id'],
+                    'name' => $eval['name'],
+                    'sku' => $eval['sku'],
+                    'uom' => $eval['uom'],
+                    'estimated_unit_price' => (float) ($eval['estimated_unit_price'] ?? 0),
+                    'qty_requested' => max(1, $qty),
+                    'primary_alert' => $eval['primary_alert'],
+                    'alerts' => $eval['alerts'],
+                    'available' => $eval['available'],
+                    'reorder_point' => $eval['reorder_point'],
+                    'safety_stock' => $eval['safety_stock'],
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'organization_id' => $orgId,
+            'warehouse_id' => $warehouseId,
+            'total_items' => count($items),
+            'items' => $items,
+        ]);
     }
 
     public function prStore(Request $request)

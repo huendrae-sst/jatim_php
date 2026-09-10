@@ -32,9 +32,17 @@
 
     // ==================== CREATE MODAL STATE ====================
     createModal: false,
+    createOrganizationId: '{{ auth()->user()->organization_id ?: ($organizations->first()->id ?? '') }}',
+    loadingEws: false,
+    ewsNotice: '',
+    ewsError: '',
     createRows: [],
     createTotal: 0,
     openCreateModal() {
+        this.createOrganizationId = '{{ auth()->user()->organization_id ?: ($organizations->first()->id ?? '') }}';
+        this.loadingEws = false;
+        this.ewsNotice = '';
+        this.ewsError = '';
         let first = this.itemsCatalog[0];
         let p = first ? parseFloat(first.estimated_unit_price || 0) : 0;
         this.createRows = [{
@@ -46,6 +54,71 @@
         }];
         this.recalculateCreateTotal();
         this.createModal = true;
+    },
+    async generateEwsItems() {
+        if (!this.createOrganizationId) {
+            this.ewsError = 'Silakan pilih Unit Kerja Pemohon terlebih dahulu.';
+            this.ewsNotice = '';
+            return;
+        }
+
+        const hasExistingItems = (this.createRows || []).some(it => it.item_id && it.qty > 0);
+        if (hasExistingItems) {
+            if (!confirm('Daftar barang saat ini akan digantikan dengan daftar barang rekomendasi EWS (Stockout & ROP breach). Lanjutkan?')) {
+                return;
+            }
+        }
+
+        this.loadingEws = true;
+        this.ewsError = '';
+        this.ewsNotice = '';
+
+        try {
+            const url = new URL('{{ route('procurement.pr.ews_items') }}', window.location.origin);
+            url.searchParams.append('organization_id', this.createOrganizationId);
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Gagal memuat barang EWS.');
+            }
+
+            if (!data.items || data.items.length === 0) {
+                this.ewsNotice = 'Tidak ditemukan barang dengan status peringatan Stockout atau ROP breach di unit kerja yang dipilih.';
+                return;
+            }
+
+            this.createRows = data.items.map(it => {
+                let cat = this.itemsCatalog.find(c => String(c.id) === String(it.item_id));
+                let unitPrice = cat ? parseFloat(cat.estimated_unit_price || 0) : parseFloat(it.estimated_unit_price || 0);
+                let qty = Number(it.qty_requested) || 1;
+                let alertLabel = it.primary_alert === 'CRITICAL_STOCKOUT' ? 'Stockout' : 'ROP Breach';
+                return {
+                    item_id: String(it.item_id),
+                    qty: qty,
+                    unit_price: unitPrice,
+                    subtotal: qty * unitPrice,
+                    notes: `Rekomendasi EWS: ${alertLabel} (Sisa: ${it.available}, ROP: ${it.reorder_point})`
+                };
+            });
+
+            this.recalculateCreateTotal();
+
+            const stockoutCount = data.items.filter(it => it.primary_alert === 'CRITICAL_STOCKOUT' || (it.alerts && it.alerts.includes('CRITICAL_STOCKOUT'))).length;
+            const ropCount = data.items.filter(it => it.primary_alert === 'HIGH_REORDER' || (it.alerts && it.alerts.includes('HIGH_REORDER'))).length;
+
+            this.ewsNotice = `Berhasil memuat ${data.items.length} barang dari EWS (${stockoutCount} Stockout, ${ropCount} ROP breach). Kuantitas saran telah diisi otomatis.`;
+        } catch (err) {
+            this.ewsError = err.message || 'Terjadi kesalahan saat memuat data EWS.';
+        } finally {
+            this.loadingEws = false;
+        }
     },
     addCreateRow() {
         let first = this.itemsCatalog[0];
@@ -908,7 +981,7 @@
                     <div class="row g-2.5">
                         <div class="col-12 col-md-6">
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-1">Unit Kerja Pemohon <span class="text-danger">*</span></label>
-                            <select name="organization_id" required class="form-select form-select-sm fs-8">
+                            <select name="organization_id" x-model="createOrganizationId" @change="ewsNotice = ''; ewsError = '';" required class="form-select form-select-sm fs-8">
                                 @foreach($organizations as $org)
                                     <option value="{{ $org->id }}" {{ $org->id === auth()->user()->organization_id ? 'selected' : '' }}>
                                         {{ $org->name }} ({{ $org->code }})
@@ -937,10 +1010,42 @@
                             <label class="form-label fs-8 fw-bold text-secondary text-uppercase mb-0">
                                 Daftar Barang yang Diminta (<span x-text="createRows.length"></span> item)
                             </label>
-                            <button type="button" @click="addCreateRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold">
-                                <i class="bi bi-plus-circle me-1"></i> Tambah Item
-                            </button>
+                            <div class="d-flex align-items-center gap-1.5">
+                                <button type="button" @click="generateEwsItems()" :disabled="loadingEws" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2 fs-9 d-inline-flex align-items-center gap-1 shadow-xs" title="Generate barang kritis (Stockout & ROP) dari EWS">
+                                    <span x-show="loadingEws" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 10px; height: 10px;"></span>
+                                    <i x-show="!loadingEws" class="bi bi-shield-exclamation text-warning"></i>
+                                    <span>Tambah Barang EWS</span>
+                                </button>
+                                <button type="button" @click="addCreateRow()" class="btn btn-sm btn-outline-danger py-1 px-2 fs-8 fw-semibold d-inline-flex align-items-center gap-1">
+                                    <i class="bi bi-plus-circle me-1"></i>
+                                    <span>Tambah Item</span>
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Feedback EWS -->
+                        <template x-if="ewsNotice && ewsNotice.trim() !== ''">
+                            <div class="alert alert-info py-1.5 px-2.5 fs-9 mb-2 d-flex align-items-center justify-content-between" role="alert">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <i class="bi bi-info-circle-fill text-info flex-shrink-0"></i>
+                                    <span x-text="ewsNotice"></span>
+                                </div>
+                                <button type="button" @click="ewsNotice = ''" class="btn-unstyled p-0 border-0 bg-transparent text-secondary hover:text-dark ms-2 cursor-pointer" style="line-height: 1;" title="Tutup">
+                                    <i class="bi bi-x-lg fs-9"></i>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="ewsError && ewsError.trim() !== ''">
+                            <div class="alert alert-danger py-1.5 px-2.5 fs-9 mb-2 d-flex align-items-center justify-content-between" role="alert">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0"></i>
+                                    <span x-text="ewsError"></span>
+                                </div>
+                                <button type="button" @click="ewsError = ''" class="btn-unstyled p-0 border-0 bg-transparent text-secondary hover:text-dark ms-2 cursor-pointer" style="line-height: 1;" title="Tutup">
+                                    <i class="bi bi-x-lg fs-9"></i>
+                                </button>
+                            </div>
+                        </template>
 
                         <div class="table-responsive rounded border border-secondary-subtle" style="max-height: 240px; overflow-y: auto;">
                             <table class="table table-sm table-striped table-hover align-middle mb-0 fs-8">

@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::prefix('procurement')->name('procurement.')->group(function () {
         // PR
         Route::get('/pr', [ProcurementController::class, 'prIndex'])->name('pr.index');
+        Route::get('/pr/ews-items', [ProcurementController::class, 'ewsItems'])->name('pr.ews_items');
         Route::post('/pr', [ProcurementController::class, 'prStore'])->name('pr.store');
         Route::get('/pr/{id}', [ProcurementController::class, 'prShow'])->name('pr.show');
         Route::get('/pr/{id}/print', [ProcurementController::class, 'prPrint'])->name('pr.print');

@@ -35,6 +35,8 @@ class ProcurementPrManagementTest extends TestCase
         $response->assertSee('openEditModal');
         $response->assertSee('openDeleteModal');
         $response->assertSee('openCreateModal');
+        $response->assertSee('Tambah Barang EWS');
+        $response->assertSee('generateEwsItems');
         $response->assertSee('Menampilkan');
         $response->assertSee('Baris per halaman');
     }
