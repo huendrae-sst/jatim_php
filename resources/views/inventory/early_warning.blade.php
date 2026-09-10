@@ -12,7 +12,7 @@
     <!-- Summary Metrics (AdminLTE 4 Info-Boxes) -->
     <div class="row g-3">
         <!-- 1. Kritis / Stockout -->
-        <div class="col-12 col-sm-6 col-xl-2">
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="info-box shadow-xs mb-0 h-100 bg-body">
                 <span class="info-box-icon text-bg-danger"><i class="bi bi-exclamation-octagon"></i></span>
                 <div class="info-box-content">
@@ -26,7 +26,7 @@
         </div>
 
         <!-- 2. Perlu Reorder Segera (ROP Breach) -->
-        <div class="col-12 col-sm-6 col-xl-2">
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="info-box shadow-xs mb-0 h-100 bg-body">
                 <span class="info-box-icon text-bg-warning"><i class="bi bi-cart-plus"></i></span>
                 <div class="info-box-content">
@@ -39,36 +39,8 @@
             </div>
         </div>
 
-        <!-- 3. Overstock / Excess -->
-        <div class="col-12 col-sm-6 col-xl-2">
-            <div class="info-box shadow-xs mb-0 h-100 bg-body">
-                <span class="info-box-icon text-bg-primary"><i class="bi bi-box-arrow-up"></i></span>
-                <div class="info-box-content">
-                    <span class="info-box-text fs-9 text-secondary fw-bold text-uppercase">Overstock</span>
-                    <span class="info-box-number fs-4 fw-bold font-monospace {{ $summary['overstock_count'] > 0 ? 'text-primary' : 'text-body-emphasis' }}">
-                        {{ number_format($summary['overstock_count']) }} SKU
-                    </span>
-                    <span class="fs-9 text-secondary">&gt; Max Stock / &gt; 180 hr</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. Dead Stock / Slow Moving -->
-        <div class="col-12 col-sm-6 col-xl-2">
-            <div class="info-box shadow-xs mb-0 h-100 bg-body">
-                <span class="info-box-icon text-bg-secondary"><i class="bi bi-hourglass-bottom"></i></span>
-                <div class="info-box-content">
-                    <span class="info-box-text fs-9 text-secondary fw-bold text-uppercase">Dead Stock</span>
-                    <span class="info-box-number fs-4 fw-bold font-monospace {{ $summary['dead_stock_count'] > 0 ? 'text-secondary-emphasis' : 'text-body-emphasis' }}">
-                        {{ number_format($summary['dead_stock_count']) }} SKU
-                    </span>
-                    <span class="fs-9 text-secondary">Diam &ge; 90 hari terakhir</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- 5. Terdapat Barang Rusak -->
-        <div class="col-12 col-sm-6 col-xl-2">
+        <!-- 3. Terdapat Barang Rusak -->
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="info-box shadow-xs mb-0 h-100 bg-body">
                 <span class="info-box-icon text-bg-danger-subtle text-danger"><i class="bi bi-x-octagon"></i></span>
                 <div class="info-box-content">
@@ -81,8 +53,8 @@
             </div>
         </div>
 
-        <!-- 6. Total Nilai Berisiko -->
-        <div class="col-12 col-sm-6 col-xl-2">
+        <!-- 4. Total Nilai Berisiko -->
+        <div class="col-12 col-sm-6 col-xl-3">
             <div class="info-box shadow-xs mb-0 h-100 bg-body">
                 <span class="info-box-icon text-bg-dark"><i class="bi bi-cash-stack"></i></span>
                 <div class="info-box-content">
@@ -201,7 +173,7 @@
                         <th class="text-center">Laju & Daya Tahan</th>
                         <th class="text-center">Status Alert EWS</th>
                         <th>Rekomendasi Tindakan Cepat</th>
-                        <th class="text-end pe-4">Aksi</th>
+                        <th class="text-center pe-4" style="width: 105px;">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="border-top-0">
@@ -288,7 +260,7 @@
                             </td>
 
                             <!-- Rekomendasi Tindakan -->
-                            <td style="max-width: 260px;">
+                            <td style="min-width: 280px; max-width: 360px;">
                                 <div class="fs-9 text-body-emphasis fw-medium">
                                     {{ $w['recommendation'] }}
                                 </div>
@@ -297,20 +269,81 @@
                                         Saran Reorder: +{{ number_format($w['suggested_reorder_qty']) }} {{ $w['uom'] }}
                                     </div>
                                 @endif
+
+                                @if(!empty($w['lead_time_comparison']))
+                                    @php $comp = $w['lead_time_comparison']; @endphp
+                                    <div class="mt-2 p-2 rounded border bg-body-tertiary fs-9">
+                                        <div class="d-flex align-items-center justify-content-between mb-1.5 pb-1 border-bottom">
+                                            <span class="fw-bold text-uppercase fs-10 text-secondary d-flex align-items-center gap-1">
+                                                <i class="bi bi-stopwatch text-primary"></i> Perbandingan Kecepatan
+                                            </span>
+                                            @if($comp['switching_available'])
+                                                <span class="badge bg-success-subtle text-success-emphasis border border-success-subtle py-0.5 px-1.5 fw-bold" style="font-size: 10px;">
+                                                    <i class="bi bi-lightning-charge-fill me-0.5"></i> Switching Lebih Cepat (~{{ $comp['days_saved'] }} hr)
+                                                </span>
+                                            @else
+                                                <span class="badge bg-secondary-subtle text-secondary border py-0.5 px-1.5" style="font-size: 10px;">
+                                                    Switching Tdk Tersedia
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        <!-- Jalur 1: Switching Stock via Kurir Langsung -->
+                                        <div class="mb-1.5 p-1.5 rounded {{ $comp['switching_available'] ? 'bg-success-subtle border border-success-subtle' : 'bg-body border text-muted' }}">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <span class="fw-bold {{ $comp['switching_available'] ? 'text-success-emphasis' : 'text-secondary' }}">
+                                                    <i class="bi bi-truck me-1"></i> Switching Stock (Kurir)
+                                                </span>
+                                                <span class="badge {{ $comp['switching_available'] ? 'bg-success text-white' : 'bg-secondary-subtle text-secondary' }} font-monospace" style="font-size: 10px;">
+                                                    {{ $comp['switching_days_label'] }}
+                                                </span>
+                                            </div>
+                                            <div class="text-secondary fs-10 mt-0.5">
+                                                @if($comp['switching_available'])
+                                                    Sumber: <strong>{{ $comp['source_label'] }}</strong> &rarr; Kurir Langsung &rarr; Gudang Tujuan.
+                                                @else
+                                                    Tidak ada ketersediaan surplus stok di gudang lain (0 surplus).
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <!-- Jalur 2: Pengadaan Baru PR via Vendor -->
+                                        <div class="p-1.5 rounded bg-body border">
+                                            <div class="d-flex align-items-center justify-content-between">
+                                                <span class="fw-bold text-body">
+                                                    <i class="bi bi-cart-check me-1"></i> Pengadaan PR (Vendor)
+                                                </span>
+                                                <span class="badge bg-secondary text-white font-monospace" style="font-size: 10px;">
+                                                    ~{{ $comp['pr_days'] }} hari
+                                                </span>
+                                            </div>
+                                            <div class="text-secondary fs-10 mt-0.5">
+                                                Vendor (LT {{ $comp['vendor_lead_time'] }} hr) &rarr; Gudang Pusat &rarr; Transit ke Tujuan (~{{ $comp['transit_days'] }} hr).
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
                             </td>
 
                             <!-- Aksi Cepat -->
-                            <td class="text-end pe-4">
-                                <div class="btn-group btn-group-sm">
-                                    <a href="{{ route('inventory.stock_card', $w['item_id']) }}" class="btn btn-outline-secondary fs-9" title="Lihat Kartu Stok">
+                            <td class="text-center pe-4 py-2">
+                                <div class="d-inline-flex align-items-center justify-content-center gap-1">
+                                    @php
+                                        $stockCardWh = ($selectedWarehouseId && $selectedWarehouseId !== 'all') 
+                                            ? $selectedWarehouseId 
+                                            : ($w['warehouse_id'] ?? 'ALL');
+                                    @endphp
+                                    <a href="{{ route('inventory.stock_card', ['itemId' => $w['item_id'], 'warehouse_id' => $stockCardWh]) }}" 
+                                       class="btn-action-icon text-primary" 
+                                       title="Lihat Kartu Stok">
                                         <i class="bi bi-card-list"></i>
                                     </a>
                                     @if(in_array('CRITICAL_STOCKOUT', $w['alerts']) || in_array('HIGH_REORDER', $w['alerts']))
-                                        <a href="{{ route('inventory.switching.index') }}" class="btn btn-outline-warning fs-9" title="Switching Antar-Cabang">
+                                        <a href="{{ route('inventory.switching.index') }}" class="btn-action-icon text-warning" title="Switching Antar-Cabang">
                                             <i class="bi bi-arrow-left-right"></i>
                                         </a>
                                         @if(auth()->user()->canAccessModule('procurement'))
-                                            <a href="{{ route('procurement.pr.index') }}" class="btn btn-danger fs-9" title="Pusat Pengadaan PR">
+                                            <a href="{{ route('procurement.pr.index') }}" class="btn-action-icon text-danger" title="Pusat Pengadaan PR">
                                                 <i class="bi bi-bag-plus"></i>
                                             </a>
                                         @endif

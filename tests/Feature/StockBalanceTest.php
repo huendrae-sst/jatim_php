@@ -203,6 +203,21 @@ class StockBalanceTest extends TestCase
         $response->assertSee('Simpan Penyesuaian');
     }
 
+    public function test_stock_card_page_renders_with_warehouse_id_all(): void
+    {
+        $data = $this->setupPrerequisites();
+
+        $response = $this->actingAs($data['user'])->get(route('inventory.stock_card', [
+            'itemId' => $data['item1']->id,
+            'warehouse_id' => 'ALL',
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('Konsolidasi Seluruh Gudang');
+        $response->assertSee('Server Rack Mount');
+        $response->assertSee('SKU-SRV-001');
+    }
+
     public function test_stock_opname_page_renders_with_redesigned_layout_and_info_boxes(): void
     {
         $data = $this->setupPrerequisites();
@@ -385,5 +400,40 @@ class StockBalanceTest extends TestCase
             'period_year' => 2026,
             'period_month' => 3,
         ]);
+    }
+
+    public function test_stock_balances_and_stock_card_support_case_insensitive_all_warehouse_parameter(): void
+    {
+        $data = $this->setupPrerequisites();
+
+        // Test balances with warehouse_id=ALL
+        $responseAllUpper = $this->actingAs($data['user'])->get(route('inventory.balances', ['warehouse_id' => 'ALL']));
+        $responseAllUpper->assertStatus(200);
+
+        // Test balances with warehouse_id=all
+        $responseAllLower = $this->actingAs($data['user'])->get(route('inventory.balances', ['warehouse_id' => 'all']));
+        $responseAllLower->assertStatus(200);
+
+        // Test stock card with warehouse_id=ALL
+        $stockCardUpper = $this->actingAs($data['user'])->get(route('inventory.stock_card', [
+            'itemId' => $data['item1']->id,
+            'warehouse_id' => 'ALL',
+        ]));
+        $stockCardUpper->assertStatus(200);
+
+        // Test stock card with warehouse_id=all
+        $stockCardLower = $this->actingAs($data['user'])->get(route('inventory.stock_card', [
+            'itemId' => $data['item1']->id,
+            'warehouse_id' => 'all',
+        ]));
+        $stockCardLower->assertStatus(200);
+
+        // Test early warning with warehouse_id=ALL
+        $ewsResponse = $this->actingAs($data['user'])->get(route('inventory.early_warning', ['warehouse_id' => 'ALL']));
+        $ewsResponse->assertStatus(200);
+
+        // Test stock opname history with warehouse_id=ALL
+        $opnameHistoryResponse = $this->actingAs($data['user'])->get(route('inventory.stock_opname.history', ['warehouse_id' => 'ALL']));
+        $opnameHistoryResponse->assertStatus(200);
     }
 }

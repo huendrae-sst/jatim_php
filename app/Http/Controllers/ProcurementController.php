@@ -162,11 +162,11 @@ class ProcurementController extends Controller
             return back()->with('error', 'Anda tidak memiliki wewenang untuk mengubah PR milik unit kerja lain.');
         }
 
-        $isEditable = in_array($pr->status, ['DRAFT', 'SUBMITTED', 'REJECTED']) ||
-            ($pr->status === 'APPROVED' && $pr->items->every(fn ($it) => $it->purchaseOrderItems->isEmpty()));
-
+        $isEditable = ! in_array($pr->status, ['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED']);
         if (! $isEditable) {
-            return back()->with('error', "Purchase Request {$pr->pr_number} tidak dapat diubah karena sudah diproses ke Purchase Order.");
+            $statusLabel = str_replace('_', ' ', $pr->status);
+
+            return back()->with('error', "Purchase Request {$pr->pr_number} tidak dapat diubah karena status sudah {$statusLabel}.");
         }
 
         $validated = $request->validate([
@@ -233,6 +233,12 @@ class ProcurementController extends Controller
 
         if ($user->isBranchUser() && $user->organization_id && $pr->organization_id !== $user->organization_id) {
             return back()->with('error', 'Anda tidak memiliki wewenang untuk menghapus PR milik unit kerja lain.');
+        }
+
+        if (in_array($pr->status, ['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED'])) {
+            $statusLabel = str_replace('_', ' ', $pr->status);
+
+            return back()->with('error', "Purchase Request {$pr->pr_number} tidak dapat dihapus karena status sudah {$statusLabel}.");
         }
 
         $hasPo = $pr->items->contains(fn ($it) => $it->purchaseOrderItems->isNotEmpty());

@@ -4,6 +4,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\EarlyWarningController;
+use App\Http\Controllers\EssReportController;
 use App\Http\Controllers\InitialStockController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterDataController;
@@ -137,6 +138,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/switching-stocks/approvals', [SwitchingStockController::class, 'approvals'])->name('switching.approvals');
         Route::get('/switching-stocks', [SwitchingStockController::class, 'index'])->name('switching.index');
         Route::get('/switching-stocks/recommendations', [SwitchingStockController::class, 'recommendations'])->name('switching.recommendations');
+        Route::get('/switching-stocks/ews-items', [SwitchingStockController::class, 'ewsItems'])->name('switching.ews_items');
         Route::post('/switching-stocks', [SwitchingStockController::class, 'store'])->name('switching.store');
         Route::put('/switching-stocks/{id}', [SwitchingStockController::class, 'update'])->name('switching.update');
         Route::delete('/switching-stocks/{id}', [SwitchingStockController::class, 'destroy'])->name('switching.destroy');
@@ -155,6 +157,30 @@ Route::middleware('auth')->group(function () {
         Route::get('/settlements', [ReportController::class, 'settlementsReport'])->name('settlements');
         Route::get('/general-ledger', [ReportController::class, 'generalLedger'])->name('general_ledger');
         Route::get('/general-ledger/export-csv', [ReportController::class, 'exportGeneralLedgerCsv'])->name('general_ledger.csv');
+    });
+
+    // Executive Support System (ESS) - 7 Laporan Eksekutif
+    Route::prefix('ess')->name('ess.')->group(function () {
+        Route::get('/valuation-budget', [EssReportController::class, 'valuationBudget'])->name('valuation_budget');
+        Route::get('/valuation-budget/export-csv', [EssReportController::class, 'exportValuationBudgetCsv'])->name('valuation_budget.csv');
+
+        Route::get('/cost-saving', [EssReportController::class, 'costSaving'])->name('cost_saving');
+        Route::get('/cost-saving/export-csv', [EssReportController::class, 'exportCostSavingCsv'])->name('cost_saving.csv');
+
+        Route::get('/inventory-turnover', [EssReportController::class, 'inventoryTurnover'])->name('inventory_turnover');
+        Route::get('/inventory-turnover/export-csv', [EssReportController::class, 'exportInventoryTurnoverCsv'])->name('inventory_turnover.csv');
+
+        Route::get('/risk-heatmap', [EssReportController::class, 'riskHeatmap'])->name('risk_heatmap');
+        Route::get('/risk-heatmap/export-csv', [EssReportController::class, 'exportRiskHeatmapCsv'])->name('risk_heatmap.csv');
+
+        Route::get('/service-level', [EssReportController::class, 'serviceLevel'])->name('service_level');
+        Route::get('/service-level/export-csv', [EssReportController::class, 'exportServiceLevelCsv'])->name('service_level.csv');
+
+        Route::get('/audit-compliance', [EssReportController::class, 'auditCompliance'])->name('audit_compliance');
+        Route::get('/audit-compliance/export-csv', [EssReportController::class, 'exportAuditComplianceCsv'])->name('audit_compliance.csv');
+
+        Route::get('/predictive-budget', [EssReportController::class, 'predictiveBudget'])->name('predictive_budget');
+        Route::get('/predictive-budget/export-csv', [EssReportController::class, 'exportPredictiveBudgetCsv'])->name('predictive_budget.csv');
     });
 
     // Master Data & Access

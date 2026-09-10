@@ -235,6 +235,18 @@
         .btn-action-icon.text-danger:hover {
             color: #d9252a !important;
         }
+        .btn-action-icon.text-warning {
+            color: #f1b44c !important;
+        }
+        .btn-action-icon.text-warning:hover {
+            color: #d39e00 !important;
+        }
+        .btn-action-icon.text-dark {
+            color: #343a40 !important;
+        }
+        .btn-action-icon.text-dark:hover {
+            color: #000000 !important;
+        }
         [data-bs-theme="dark"] .btn-action-icon.text-secondary {
             color: #a6b0cf !important;
         }
@@ -252,6 +264,27 @@
         }
         [data-bs-theme="dark"] .btn-action-icon.text-danger:hover {
             color: #ff9e9e !important;
+        }
+        [data-bs-theme="dark"] .btn-action-icon.text-warning {
+            color: #f5c369 !important;
+        }
+        [data-bs-theme="dark"] .btn-action-icon.text-warning:hover {
+            color: #ffd88a !important;
+        }
+        [data-bs-theme="dark"] .btn-action-icon.text-dark {
+            color: #ced4da !important;
+        }
+        [data-bs-theme="dark"] .btn-action-icon.text-dark:hover {
+            color: #ffffff !important;
+        }
+
+        /* Custom Status Badge Helpers */
+        .text-bg-purple {
+            color: #ffffff !important;
+            background-color: #6f42c1 !important;
+        }
+        .badge.text-bg-warning {
+            color: #000000 !important;
         }
 
         /* Dialog & Modal Close Button ("Tombol X Tutup Dialog: Pojok Kanan Atas & Berwarna") */
@@ -1298,6 +1331,63 @@
                                     </p>
                                 </a>
                             </li>
+
+                            <!-- Executive Support System (ESS) -->
+                            @if(auth()->user()->canAccessModule('ess'))
+                                <li class="nav-item {{ request()->routeIs('ess.*') ? 'menu-open' : '' }}">
+                                    <a href="#" class="nav-link {{ request()->routeIs('ess.*') ? 'active' : '' }}">
+                                        <i class="nav-icon bi bi-speedometer2 text-danger"></i>
+                                        <p>
+                                            Executive Support (ESS)
+                                            <i class="nav-arrow bi bi-chevron-right"></i>
+                                        </p>
+                                    </a>
+                                    <ul class="nav nav-treeview">
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.valuation_budget') }}" class="nav-link {{ request()->routeIs('ess.valuation_budget') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Valuasi & Anggaran</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.cost_saving') }}" class="nav-link {{ request()->routeIs('ess.cost_saving') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Efisiensi Biaya Switching</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.inventory_turnover') }}" class="nav-link {{ request()->routeIs('ess.inventory_turnover') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Perputaran Stok (ITO)</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.risk_heatmap') }}" class="nav-link {{ request()->routeIs('ess.risk_heatmap') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Peta Ketahanan Jaringan</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.service_level') }}" class="nav-link {{ request()->routeIs('ess.service_level') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Kinerja Layanan (SLA)</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.audit_compliance') }}" class="nav-link {{ request()->routeIs('ess.audit_compliance') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Akuntabilitas & Audit</p>
+                                            </a>
+                                        </li>
+                                        <li class="nav-item">
+                                            <a href="{{ route('ess.predictive_budget') }}" class="nav-link {{ request()->routeIs('ess.predictive_budget') ? 'active' : '' }}">
+                                                <i class="nav-icon bi bi-circle"></i>
+                                                <p>Proyeksi Belanja Logistik</p>
+                                            </a>
+                                        </li>
+                                    </ul>
+                                </li>
+                            @endif
 
                             <!-- Laporan & Ekspor -->
                             @if(auth()->user()->canAccessModule('reports'))

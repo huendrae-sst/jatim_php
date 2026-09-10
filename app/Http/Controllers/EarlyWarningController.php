@@ -29,11 +29,11 @@ class EarlyWarningController extends Controller
         }
 
         $selectedWarehouseId = $request->get('warehouse_id');
-        if ($selectedWarehouseId === null) {
-            $selectedWarehouseId = ($isBranch && $user->warehouse_id) ? (string) $user->warehouse_id : 'all';
+        if ($selectedWarehouseId === null || strtolower((string) $selectedWarehouseId) === 'all') {
+            $selectedWarehouseId = ($selectedWarehouseId === null && $isBranch && $user->warehouse_id) ? (string) $user->warehouse_id : 'all';
         }
 
-        $warehouseFilterId = ($selectedWarehouseId && $selectedWarehouseId !== 'all') ? (int) $selectedWarehouseId : null;
+        $warehouseFilterId = ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all') ? (int) $selectedWarehouseId : null;
 
         // KPI Summary
         $summary = $this->earlyWarningService->getSummaryMetrics($warehouseFilterId);
@@ -131,7 +131,7 @@ class EarlyWarningController extends Controller
     public function exportCsv(Request $request): StreamedResponse
     {
         $selectedWarehouseId = $request->get('warehouse_id');
-        $warehouseFilterId = ($selectedWarehouseId && $selectedWarehouseId !== 'all') ? (int) $selectedWarehouseId : null;
+        $warehouseFilterId = ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all') ? (int) $selectedWarehouseId : null;
 
         $evaluations = $this->earlyWarningService->getAllEvaluations($warehouseFilterId);
 

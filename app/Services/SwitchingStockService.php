@@ -127,7 +127,7 @@ class SwitchingStockService
                 ];
             }
 
-            if ($anyExcessCount > 0) {
+            if ($fullyCoveredCount >= 1) {
                 $totalItemsCount = count($itemsList);
                 $isAllCovered = ($fullyCoveredCount === $totalItemsCount);
 

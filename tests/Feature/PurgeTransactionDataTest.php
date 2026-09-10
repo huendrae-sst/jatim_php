@@ -134,6 +134,7 @@ class PurgeTransactionDataTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_items', 0);
         $this->assertDatabaseCount('stock_ledgers', 0);
+        $this->assertDatabaseCount('general_ledger_entries', 0);
 
         // Master records preserved
         $this->assertDatabaseCount('organizations', 1);

@@ -91,7 +91,7 @@ class InventoryApiController extends Controller
         // Match by SKU or barcode or Order/Shipment number
         $item = Item::with('category')->where('sku', $code)->orWhere('barcode', $code)->first();
         if ($item) {
-            $totalAvailable = StockBalance::where('item_id', $item->id)->sum('available');
+            $totalAvailable = (int) StockBalance::where('item_id', $item->id)->get()->sum('available');
 
             return response()->json([
                 'type' => 'ITEM',

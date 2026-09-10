@@ -208,8 +208,8 @@ class StockOpnameController extends Controller
         }
 
         $selectedWarehouseId = $request->get('warehouse_id');
-        if ($selectedWarehouseId === null) {
-            $selectedWarehouseId = ($isBranch && $user->warehouse_id) ? (string) $user->warehouse_id : 'all';
+        if ($selectedWarehouseId === null || strtolower((string) $selectedWarehouseId) === 'all') {
+            $selectedWarehouseId = ($selectedWarehouseId === null && $isBranch && $user->warehouse_id) ? (string) $user->warehouse_id : 'all';
         }
 
         $selectedYear = $request->get('period_year', (string) date('Y'));
@@ -224,7 +224,7 @@ class StockOpnameController extends Controller
 
         $baseQuery = StockOpname::with(['warehouse.organization', 'user']);
 
-        if ($selectedWarehouseId && $selectedWarehouseId !== 'all') {
+        if ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all') {
             $baseQuery->where('warehouse_id', (int) $selectedWarehouseId);
         }
 

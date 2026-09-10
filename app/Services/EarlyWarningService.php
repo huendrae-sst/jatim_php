@@ -119,8 +119,77 @@ class EarlyWarningService
         $unitPrice = (float) $item->estimated_unit_price;
         $totalValuation = round($onHand * $unitPrice, 2);
 
+        // 6. Analisis Perbandingan Kecepatan Pemenuhan (PR via Vendor vs Switching via Kurir)
+        $leadTimeComparison = null;
+        if (in_array('CRITICAL_STOCKOUT', $alerts, true) || in_array('HIGH_REORDER', $alerts, true)) {
+            // Jalur 1: PR via Vendor (Vendor -> Gudang Pusat -> Gudang Tujuan)
+            $vendorLt = $leadTimeDays;
+            $transitToDest = 2; // Estimasi penerimaan & pengiriman Gudang Pusat ke Tujuan (1-2 hari kerja)
+            $prTotalDays = $vendorLt + $transitToDest;
+
+            // Jalur 2: Switching Stock via Kurir (Gudang Sumber Surplus -> Kurir Langsung -> Gudang Tujuan)
+            $switchingDays = 2; // Estimasi 1-2 hari via kurir langsung
+
+            // Cek ketersediaan stok surplus di gudang lain (Available - Safety Stock > 0)
+            if ($item->relationLoaded('stockBalances')) {
+                $otherBalances = $item->stockBalances->filter(function ($sb) use ($warehouseId) {
+                    return ! $warehouseId || $sb->warehouse_id != $warehouseId;
+                });
+            } else {
+                $otherBalancesQuery = StockBalance::with('warehouse.organization')
+                    ->where('item_id', $item->id);
+                if ($warehouseId && $warehouseId > 0) {
+                    $otherBalancesQuery->where('warehouse_id', '!=', $warehouseId);
+                }
+                $otherBalances = $otherBalancesQuery->get();
+            }
+
+            $bestSource = null;
+            $totalSurplus = 0;
+
+            foreach ($otherBalances as $ob) {
+                if (! $ob->relationLoaded('warehouse')) {
+                    $ob->load('warehouse.organization');
+                }
+
+                $avail = (int) $ob->available;
+                $surplus = max(0, $avail - $safetyStock);
+                if ($surplus > 0) {
+                    $totalSurplus += $surplus;
+                    if (! $bestSource || $surplus > $bestSource['surplus']) {
+                        $bestSource = [
+                            'warehouse_id' => $ob->warehouse_id,
+                            'warehouse_name' => $ob->warehouse?->name ?? 'Gudang Cabang',
+                            'organization_name' => $ob->warehouse?->organization?->name ?? 'Cabang',
+                            'surplus' => $surplus,
+                        ];
+                    }
+                }
+            }
+
+            $switchingAvailable = ($bestSource !== null && $totalSurplus > 0);
+            $daysSaved = $switchingAvailable ? max(1, $prTotalDays - $switchingDays) : 0;
+
+            $leadTimeComparison = [
+                'switching_available' => $switchingAvailable,
+                'faster_method' => $switchingAvailable ? 'SWITCHING' : 'PR',
+                'switching_days' => $switchingDays,
+                'switching_days_label' => '1-2 hari kerja',
+                'vendor_lead_time' => $vendorLt,
+                'transit_days' => $transitToDest,
+                'pr_days' => $prTotalDays,
+                'days_saved' => $daysSaved,
+                'best_source' => $bestSource,
+                'total_surplus' => $totalSurplus,
+                'source_label' => $bestSource
+                    ? "{$bestSource['organization_name']} ({$bestSource['warehouse_name']}, Surplus +{$bestSource['surplus']} {$item->uom})"
+                    : 'Tidak ada cabang dengan surplus stok',
+            ];
+        }
+
         return [
             'item_id' => $item->id,
+            'warehouse_id' => $warehouseId,
             'sku' => $item->sku,
             'name' => $item->name,
             'category_id' => $item->category_id,
@@ -148,6 +217,7 @@ class EarlyWarningService
             'suggested_reorder_qty' => ($primaryAlert === 'CRITICAL_STOCKOUT' || $primaryAlert === 'HIGH_REORDER')
                 ? max(20, $maxStock - $available)
                 : 0,
+            'lead_time_comparison' => $leadTimeComparison,
         ];
     }
 
@@ -158,7 +228,7 @@ class EarlyWarningService
      */
     public function getAllEvaluations(?int $warehouseId = null): array
     {
-        $items = Item::with(['category', 'stockBalances'])
+        $items = Item::with(['category', 'stockBalances.warehouse.organization'])
             ->where('is_active', true)
             ->orderBy('sku')
             ->get();

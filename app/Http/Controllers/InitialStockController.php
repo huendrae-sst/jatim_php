@@ -356,16 +356,19 @@ class InitialStockController extends Controller
         }
 
         $selectedWarehouseId = $request->get('warehouse_id', 'all');
+        if (strtolower((string) $selectedWarehouseId) === 'all') {
+            $selectedWarehouseId = 'all';
+        }
         $search = $request->get('search');
         $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50]) ? (int) $request->get('per_page') : 10;
 
         $query = StockLedger::with(['warehouse.organization', 'item.category', 'creator'])
             ->where('transaction_type', 'STOCK_INITIAL');
 
-        if ($selectedWarehouseId && $selectedWarehouseId !== 'all') {
-            $query->where('warehouse_id', $selectedWarehouseId);
+        if ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all') {
+            $query->where('warehouse_id', (int) $selectedWarehouseId);
         } elseif ($isBranch && $user->warehouse_id) {
-            $query->where('warehouse_id', $user->warehouse_id);
+            $query->where('warehouse_id', (int) $user->warehouse_id);
         }
 
         if ($search) {

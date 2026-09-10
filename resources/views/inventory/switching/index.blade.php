@@ -54,6 +54,10 @@
     },
     deleteActionUrl: '',
 
+    loadingEws: false,
+    ewsNotice: '',
+    ewsError: '',
+
     loadingRec: false,
     recommendations: [],
     itemRecommendations: [],
@@ -61,6 +65,30 @@
     recError: '',
     recSearched: false,
     recSelectedItem: null,
+
+    openCreateModal() {
+        this.createData = {
+            destination_organization_id: '',
+            destination_warehouse_id: '',
+            source_organization_id: '',
+            source_warehouse_id: '',
+            recommendation_reason: '',
+            items: [
+                { item_id: '', qty_requested: 1 }
+            ]
+        };
+        this.loadingEws = false;
+        this.ewsNotice = '';
+        this.ewsError = '';
+        this.loadingRec = false;
+        this.recommendations = [];
+        this.itemRecommendations = [];
+        this.recViewMode = 'branch';
+        this.recError = '';
+        this.recSearched = false;
+        this.recSelectedItem = null;
+        this.createModalOpen = true;
+    },
 
     addItemRow(formType = 'create') {
         if (formType === 'create') {
@@ -87,6 +115,8 @@
             this.itemRecommendations = [];
             this.recSearched = false;
             this.recError = '';
+            this.ewsNotice = '';
+            this.ewsError = '';
         } else {
             this.editData.destination_warehouse_id = available.length > 0 ? available[0].id : '';
         }
@@ -147,7 +177,7 @@
                 throw new Error(data.message || 'Gagal memuat rekomendasi.');
             }
 
-            this.recommendations = data.recommendations || [];
+            this.recommendations = (data.recommendations || []).filter(r => (r.fully_covered_count || 0) >= 1);
             this.itemRecommendations = data.item_recommendations || [];
             this.recViewMode = this.recommendations.length > 0 ? 'branch' : 'item';
             this.recSearched = true;
@@ -155,6 +185,67 @@
             this.recError = err.message || 'Terjadi kesalahan saat memproses rekomendasi sistem.';
         } finally {
             this.loadingRec = false;
+        }
+    },
+
+    async generateEwsItems() {
+        if (!this.createData.destination_warehouse_id) {
+            this.ewsError = 'Silakan pilih Unit Tujuan dan Gudang Tujuan terlebih dahulu.';
+            this.ewsNotice = '';
+            return;
+        }
+
+        const hasExistingItems = (this.createData.items || []).some(it => it.item_id);
+        if (hasExistingItems) {
+            if (!confirm('Daftar barang saat ini akan digantikan dengan daftar barang rekomendasi EWS (Stockout & ROP breach). Lanjutkan?')) {
+                return;
+            }
+        }
+
+        this.loadingEws = true;
+        this.ewsError = '';
+        this.ewsNotice = '';
+
+        try {
+            const url = new URL('{{ route('inventory.switching.ews_items') }}', window.location.origin);
+            url.searchParams.append('destination_warehouse_id', this.createData.destination_warehouse_id);
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Gagal memuat barang EWS.');
+            }
+
+            if (!data.items || data.items.length === 0) {
+                this.ewsNotice = 'Tidak ditemukan barang dengan status peringatan Stockout atau ROP breach di gudang tujuan yang dipilih.';
+                return;
+            }
+
+            this.createData.items = data.items.map(it => ({
+                item_id: String(it.item_id),
+                qty_requested: Number(it.qty_requested) || 1
+            }));
+
+            const stockoutCount = data.items.filter(it => it.primary_alert === 'CRITICAL_STOCKOUT' || (it.alerts && it.alerts.includes('CRITICAL_STOCKOUT'))).length;
+            const ropCount = data.items.filter(it => it.primary_alert === 'HIGH_REORDER' || (it.alerts && it.alerts.includes('HIGH_REORDER'))).length;
+
+            this.ewsNotice = `Berhasil memuat ${data.items.length} barang dari EWS (${stockoutCount} Stockout, ${ropCount} ROP breach). Kuantitas saran telah diisi otomatis.`;
+
+            // Reset rekomendasi cabang sebelumnya agar user dapat menganalisis sumber cabang baru
+            this.recommendations = [];
+            this.itemRecommendations = [];
+            this.recSearched = false;
+            this.recError = '';
+        } catch (err) {
+            this.ewsError = err.message || 'Terjadi kesalahan saat memuat data EWS.';
+        } finally {
+            this.loadingEws = false;
         }
     },
 
@@ -272,7 +363,7 @@
             </h3>
             <div class="card-tools d-flex align-items-center gap-2 ms-md-auto">
                 <span class="badge bg-secondary-subtle text-secondary-emphasis fs-8">{{ $switchings->total() }} Data Ditemukan</span>
-                <button type="button" @click="createModalOpen = true" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1 ms-auto">
+                <button type="button" @click="openCreateModal()" class="btn btn-sm btn-danger fw-bold shadow-xs d-inline-flex align-items-center gap-1 ms-auto">
                     <i class="bi bi-plus-circle"></i>
                     <span>Tambah Switching Stock</span>
                 </button>
@@ -579,7 +670,7 @@
                             </div>
                             <div class="col-md-6">
                                 <label class="form-label fs-9 fw-semibold mb-1">Gudang Tujuan <span class="text-danger">*</span></label>
-                                <select name="destination_warehouse_id" x-model="createData.destination_warehouse_id" class="form-select form-select-sm" required>
+                                <select name="destination_warehouse_id" x-model="createData.destination_warehouse_id" @change="ewsNotice = ''; ewsError = '';" class="form-select form-select-sm" required>
                                     <option value="">-- Pilih Gudang Tujuan --</option>
                                     <template x-for="wh in getFilteredWarehouses(createData.destination_organization_id)" :key="wh.id">
                                         <option :value="wh.id" x-text="wh.name + ' (' + wh.code + ')'"></option>
@@ -595,10 +686,41 @@
                             <div class="fw-bold text-danger text-uppercase fs-9">
                                 2. Daftar Barang yang Dibutuhkan (<span x-text="createData.items.length"></span> Barang)
                             </div>
-                            <button type="button" @click="addItemRow('create')" class="btn btn-xs btn-outline-danger fw-bold py-1 px-2 fs-9 d-inline-flex align-items-center gap-1">
-                                <i class="bi bi-plus-circle"></i> Tambah Barang
-                            </button>
+                            <div class="d-flex align-items-center gap-1.5">
+                                <button type="button" @click="generateEwsItems()" :disabled="loadingEws" class="btn btn-xs btn-outline-warning text-dark fw-bold py-1 px-2 fs-9 d-inline-flex align-items-center gap-1 shadow-xs" title="Generate barang kritis (Stockout & ROP) dari EWS">
+                                    <span x-show="loadingEws" class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="width: 10px; height: 10px;"></span>
+                                    <i x-show="!loadingEws" class="bi bi-shield-exclamation text-warning"></i>
+                                    <span>Tambah Barang EWS</span>
+                                </button>
+                                <button type="button" @click="addItemRow('create')" class="btn btn-xs btn-outline-danger fw-bold py-1 px-2 fs-9 d-inline-flex align-items-center gap-1">
+                                    <i class="bi bi-plus-circle"></i> Tambah Barang
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Feedback EWS -->
+                        <template x-if="ewsNotice && ewsNotice.trim() !== ''">
+                            <div class="alert alert-info py-1.5 px-2.5 fs-9 mb-2 d-flex align-items-center justify-content-between" role="alert">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <i class="bi bi-info-circle-fill text-info flex-shrink-0"></i>
+                                    <span x-text="ewsNotice"></span>
+                                </div>
+                                <button type="button" @click="ewsNotice = ''" class="btn-unstyled p-0 border-0 bg-transparent text-secondary hover:text-dark ms-2 cursor-pointer" style="line-height: 1;" title="Tutup">
+                                    <i class="bi bi-x-lg fs-9"></i>
+                                </button>
+                            </div>
+                        </template>
+                        <template x-if="ewsError && ewsError.trim() !== ''">
+                            <div class="alert alert-danger py-1.5 px-2.5 fs-9 mb-2 d-flex align-items-center justify-content-between" role="alert">
+                                <div class="d-flex align-items-center gap-1.5">
+                                    <i class="bi bi-exclamation-triangle-fill text-danger flex-shrink-0"></i>
+                                    <span x-text="ewsError"></span>
+                                </div>
+                                <button type="button" @click="ewsError = ''" class="btn-unstyled p-0 border-0 bg-transparent text-secondary hover:text-dark ms-2 cursor-pointer" style="line-height: 1;" title="Tutup">
+                                    <i class="bi bi-x-lg fs-9"></i>
+                                </button>
+                            </div>
+                        </template>
 
                         <div class="table-responsive border rounded bg-body mb-2" style="max-height: 220px; overflow-y: auto;">
                             <table class="table table-sm table-hover align-middle mb-0 fs-8">
@@ -615,9 +737,9 @@
                                             <td class="ps-3 py-1.5">
                                                 <select :name="'items[' + idx + '][item_id]'" x-model="row.item_id" class="form-select form-select-sm" required>
                                                     <option value="">-- Pilih Barang / Item --</option>
-                                                    <template x-for="it in allItems" :key="it.id">
-                                                        <option :value="it.id" x-text="it.name + ' [' + it.sku + '] (' + it.uom + ')'"></option>
-                                                    </template>
+                                                    @foreach ($items as $it)
+                                                        <option value="{{ $it->id }}">{{ $it->name }} [{{ $it->sku }}] ({{ $it->uom }})</option>
+                                                    @endforeach
                                                 </select>
                                             </td>
                                             <td class="text-center py-1.5">
@@ -1157,9 +1279,9 @@
                                                         <td class="ps-3 py-2">
                                                             <select :name="'items[' + idx + '][item_id]'" x-model="row.item_id" class="form-select form-select-sm" required>
                                                                 <option value="">-- Pilih Barang / Item --</option>
-                                                                <template x-for="it in allItems" :key="it.id">
-                                                                    <option :value="it.id" x-text="it.name + ' [' + it.sku + '] (' + it.uom + ')'"></option>
-                                                                </template>
+                                                                @foreach ($items as $it)
+                                                                    <option value="{{ $it->id }}">{{ $it->name }} [{{ $it->sku }}] ({{ $it->uom }})</option>
+                                                                @endforeach
                                                             </select>
                                                         </td>
                                                         <td class="text-center py-2">

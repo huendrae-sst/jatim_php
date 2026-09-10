@@ -313,6 +313,16 @@ class User extends Authenticatable
                 'PROCUREMENT_APPROVER',
                 'INVENTORY_OFFICER',
             ], true),
+            'ess' => in_array($this->role, [
+                'MANAGEMENT',
+                'AUDITOR',
+                'FINANCE_OFFICER',
+                'FINANCE_APPROVER',
+                'BUDGET_OFFICER',
+                'PROCUREMENT_OFFICER',
+                'PROCUREMENT_APPROVER',
+                'INVENTORY_OFFICER',
+            ], true),
             default => false,
         };
     }

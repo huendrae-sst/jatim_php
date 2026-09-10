@@ -44,6 +44,7 @@ class PurgeTransactionDataCommand extends Command
                 'discrepancies',
                 'receivings',
                 'settlements',
+                'general_ledger_entries',
                 'shipments',
                 'warehouse_packings',
                 'warehouse_pickings',

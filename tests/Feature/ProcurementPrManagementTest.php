@@ -124,6 +124,58 @@ class ProcurementPrManagementTest extends TestCase
         ]);
     }
 
+    public function test_pr_cannot_be_edited_when_status_is_approved_fully_ordered_or_partially_ordered(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+        $org = Organization::first();
+        $item = Item::first();
+
+        foreach (['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED'] as $status) {
+            $pr = PurchaseRequest::create([
+                'pr_number' => "PR-TEST-LOCK-{$status}",
+                'organization_id' => $org->id,
+                'created_by_user_id' => $admin->id,
+                'procurement_method' => 'DIRECT_PURCHASE',
+                'purpose' => "Pengadaan {$status}",
+                'status' => $status,
+                'estimated_total_cost' => 100000,
+            ]);
+
+            PurchaseRequestItem::create([
+                'purchase_request_id' => $pr->id,
+                'item_id' => $item->id,
+                'qty_requested' => 2,
+                'estimated_unit_price' => 50000,
+                'estimated_subtotal' => 100000,
+            ]);
+
+            $response = $this->actingAs($admin)->put(route('procurement.pr.update', $pr->id), [
+                'organization_id' => $org->id,
+                'procurement_method' => 'DIRECT_PURCHASE',
+                'purpose' => "Pengadaan Update {$status}",
+                'items' => [
+                    [
+                        'item_id' => $item->id,
+                        'qty' => 5,
+                        'unit_price' => 50000,
+                    ],
+                ],
+            ]);
+
+            $response->assertSessionHas('error');
+            $this->assertDatabaseMissing('purchase_requests', [
+                'id' => $pr->id,
+                'purpose' => "Pengadaan Update {$status}",
+            ]);
+        }
+
+        // Verify index view renders disabled edit button
+        $responseView = $this->actingAs($admin)->get(route('procurement.pr.index'));
+        $responseView->assertStatus(200);
+        $responseView->assertSee('opacity-25', false);
+        $responseView->assertSee('sudah tidak dapat diedit', false);
+    }
+
     public function test_can_destroy_unapproved_pr(): void
     {
         $admin = User::where('role', 'SUPER_ADMIN')->first();
@@ -157,6 +209,45 @@ class ProcurementPrManagementTest extends TestCase
         $this->assertDatabaseMissing('purchase_request_items', [
             'purchase_request_id' => $pr->id,
         ]);
+    }
+
+    public function test_pr_cannot_be_deleted_when_status_is_approved_fully_ordered_or_partially_ordered(): void
+    {
+        $admin = User::where('role', 'SUPER_ADMIN')->first();
+        $org = Organization::first();
+        $item = Item::first();
+
+        foreach (['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED'] as $status) {
+            $pr = PurchaseRequest::create([
+                'pr_number' => "PR-TEST-DEL-LOCK-{$status}",
+                'organization_id' => $org->id,
+                'created_by_user_id' => $admin->id,
+                'procurement_method' => 'DIRECT_PURCHASE',
+                'purpose' => "Pengadaan Hapus {$status}",
+                'status' => $status,
+                'estimated_total_cost' => 100000,
+            ]);
+
+            PurchaseRequestItem::create([
+                'purchase_request_id' => $pr->id,
+                'item_id' => $item->id,
+                'qty_requested' => 2,
+                'estimated_unit_price' => 50000,
+                'estimated_subtotal' => 100000,
+            ]);
+
+            $response = $this->actingAs($admin)->delete(route('procurement.pr.destroy', $pr->id));
+
+            $response->assertSessionHas('error');
+            $this->assertDatabaseHas('purchase_requests', [
+                'id' => $pr->id,
+            ]);
+        }
+
+        // Verify index view renders disabled delete button
+        $responseView = $this->actingAs($admin)->get(route('procurement.pr.index'));
+        $responseView->assertStatus(200);
+        $responseView->assertSee('sudah tidak dapat dihapus', false);
     }
 
     public function test_branch_requester_can_access_and_create_pr_scoped_to_own_branch(): void

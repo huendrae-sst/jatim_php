@@ -32,8 +32,8 @@ class ReportController extends Controller
         $categoryId = $request->category_id;
 
         $balances = StockBalance::with(['warehouse.organization', 'item.category'])
-            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId))
-            ->when($categoryId, fn ($q) => $q->whereHas('item', fn ($i) => $i->where('category_id', $categoryId)))
+            ->when($warehouseId && strtolower((string) $warehouseId) !== 'all', fn ($q) => $q->where('warehouse_id', (int) $warehouseId))
+            ->when($categoryId && strtolower((string) $categoryId) !== 'all', fn ($q) => $q->whereHas('item', fn ($i) => $i->where('category_id', $categoryId)))
             ->get();
 
         $totalValuation = $balances->sum(fn ($b) => $b->on_hand * $b->item->estimated_unit_price);

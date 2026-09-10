@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\StockBalance;
 use App\Models\SwitchingStock;
 use App\Models\Warehouse;
+use App\Services\EarlyWarningService;
 use App\Services\SwitchingStockService;
 use Exception;
 use Illuminate\Http\JsonResponse;
@@ -17,7 +18,8 @@ use Illuminate\Support\Facades\Auth;
 class SwitchingStockController extends Controller
 {
     public function __construct(
-        protected SwitchingStockService $switchingStockService
+        protected SwitchingStockService $switchingStockService,
+        protected EarlyWarningService $earlyWarningService
     ) {}
 
     public function index(Request $request)
@@ -142,6 +144,57 @@ class SwitchingStockController extends Controller
             'total_items_requested' => count($itemsList),
             'recommendations' => $alternatives,
             'item_recommendations' => $itemRecommendations,
+        ]);
+    }
+
+    public function ewsItems(Request $request): JsonResponse
+    {
+        $request->validate([
+            'destination_warehouse_id' => 'required|exists:warehouses,id',
+        ], [
+            'destination_warehouse_id.required' => 'Gudang tujuan wajib dipilih.',
+            'destination_warehouse_id.exists' => 'Gudang tujuan tidak ditemukan.',
+        ]);
+
+        $warehouseId = (int) $request->destination_warehouse_id;
+        $evaluations = $this->earlyWarningService->getAllEvaluations($warehouseId);
+
+        $alertTypes = ['CRITICAL_STOCKOUT', 'HIGH_REORDER'];
+        $items = [];
+
+        foreach ($evaluations as $eval) {
+            $hasAlert = in_array('CRITICAL_STOCKOUT', $eval['alerts'] ?? [], true)
+                || in_array('HIGH_REORDER', $eval['alerts'] ?? [], true)
+                || in_array($eval['primary_alert'] ?? '', $alertTypes, true);
+
+            if ($hasAlert) {
+                $qty = (int) ($eval['suggested_reorder_qty'] ?? 0);
+                if ($qty <= 0) {
+                    $maxStock = (int) ($eval['max_stock'] ?? 0);
+                    $available = (int) ($eval['available'] ?? 0);
+                    $qty = max(20, $maxStock - $available);
+                }
+
+                $items[] = [
+                    'item_id' => $eval['item_id'],
+                    'name' => $eval['name'],
+                    'sku' => $eval['sku'],
+                    'uom' => $eval['uom'],
+                    'qty_requested' => max(1, $qty),
+                    'primary_alert' => $eval['primary_alert'],
+                    'alerts' => $eval['alerts'],
+                    'available' => $eval['available'],
+                    'reorder_point' => $eval['reorder_point'],
+                    'safety_stock' => $eval['safety_stock'],
+                ];
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'warehouse_id' => $warehouseId,
+            'total_items' => count($items),
+            'items' => $items,
         ]);
     }
 

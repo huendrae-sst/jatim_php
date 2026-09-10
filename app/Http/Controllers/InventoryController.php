@@ -36,13 +36,15 @@ class InventoryController extends Controller
         $selectedWarehouseId = $request->get('warehouse_id');
 
         if ($selectedWarehouseId === null) {
-            $selectedWarehouseId = ($isBranch && $user->warehouse_id) ? $user->warehouse_id : $warehouses->first()?->id;
+            $selectedWarehouseId = ($isBranch && $user->warehouse_id) ? (string) $user->warehouse_id : $warehouses->first()?->id;
+        } elseif (strtolower((string) $selectedWarehouseId) === 'all') {
+            $selectedWarehouseId = 'all';
         }
 
         $baseQuery = StockBalance::with(['warehouse.organization', 'item.category']);
 
-        if ($selectedWarehouseId && $selectedWarehouseId !== 'all') {
-            $baseQuery->where('warehouse_id', $selectedWarehouseId);
+        if ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all') {
+            $baseQuery->where('warehouse_id', (int) $selectedWarehouseId);
         }
 
         // Summary KPIs
@@ -90,8 +92,8 @@ class InventoryController extends Controller
 
         $categories = Category::orderBy('name')->get();
 
-        $currentWarehouse = $selectedWarehouseId && $selectedWarehouseId !== 'all'
-            ? $warehouses->firstWhere('id', $selectedWarehouseId)
+        $currentWarehouse = ($selectedWarehouseId && strtolower((string) $selectedWarehouseId) !== 'all')
+            ? $warehouses->firstWhere('id', (int) $selectedWarehouseId)
             : null;
 
         return view('inventory.balances', compact(
@@ -117,7 +119,13 @@ class InventoryController extends Controller
     {
         $item = Item::with('category')->findOrFail($itemId);
         $warehouses = Warehouse::with('organization')->where('is_active', true)->orderBy('type')->orderBy('name')->get();
-        $selectedWarehouseId = $request->warehouse_id ?: $warehouses->first()?->id;
+
+        $rawWarehouseId = $request->get('warehouse_id');
+        if ($rawWarehouseId !== null && strtolower((string) $rawWarehouseId) === 'all') {
+            $selectedWarehouseId = 'ALL';
+        } else {
+            $selectedWarehouseId = $rawWarehouseId ?: ($warehouses->first()?->id ? (string) $warehouses->first()->id : 'ALL');
+        }
 
         $search = $request->get('search');
         $transactionType = $request->get('transaction_type');
@@ -125,7 +133,7 @@ class InventoryController extends Controller
 
         $query = StockLedger::with(['warehouse.organization', 'creator'])
             ->where('item_id', $item->id)
-            ->when($selectedWarehouseId && $selectedWarehouseId !== 'ALL', fn ($q) => $q->where('warehouse_id', $selectedWarehouseId));
+            ->when($selectedWarehouseId && strtoupper((string) $selectedWarehouseId) !== 'ALL', fn ($q) => $q->where('warehouse_id', (int) $selectedWarehouseId));
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -142,20 +150,21 @@ class InventoryController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
-        if ($selectedWarehouseId === 'ALL') {
+        if (strtoupper((string) $selectedWarehouseId) === 'ALL') {
+            $balances = StockBalance::where('item_id', $item->id)->get();
             $currentBalance = (object) [
-                'on_hand' => StockBalance::where('item_id', $item->id)->sum('on_hand'),
-                'reserved' => StockBalance::where('item_id', $item->id)->sum('reserved'),
-                'hold' => StockBalance::where('item_id', $item->id)->sum('hold'),
-                'damaged' => StockBalance::where('item_id', $item->id)->sum('damaged'),
-                'available' => StockBalance::where('item_id', $item->id)->sum('available'),
+                'on_hand' => (int) $balances->sum('on_hand'),
+                'reserved' => (int) $balances->sum('reserved'),
+                'hold' => (int) $balances->sum('hold'),
+                'damaged' => (int) $balances->sum('damaged'),
+                'available' => (int) $balances->sum('available'),
             ];
             $currentWarehouse = null;
         } else {
             $currentBalance = StockBalance::where('item_id', $item->id)
-                ->where('warehouse_id', $selectedWarehouseId)
+                ->where('warehouse_id', (int) $selectedWarehouseId)
                 ->first();
-            $currentWarehouse = $warehouses->firstWhere('id', $selectedWarehouseId);
+            $currentWarehouse = $warehouses->firstWhere('id', (int) $selectedWarehouseId);
         }
 
         return view('inventory.stock_card', compact(

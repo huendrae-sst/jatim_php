@@ -559,4 +559,43 @@ class SwitchingStockTest extends TestCase
         $this->assertFalse($json['item_recommendations'][1]['has_recommendation']);
         $this->assertEmpty($json['item_recommendations'][1]['sources']);
     }
+
+    public function test_system_recommendations_per_cabang_terpadu_requires_at_least_one_fully_covered_item(): void
+    {
+        $data = $this->setupPrerequisites();
+
+        // whSource has item with on_hand 50, reserved 0, safety_stock 30 -> excess is 20
+        // Request qty: 50 (greater than excess 20), so fully_covered_count will be 0
+        $response = $this->actingAs($data['user'])->getJson(route('inventory.switching.recommendations', [
+            'destination_organization_id' => $data['orgDest']->id,
+            'items' => [
+                ['item_id' => $data['item']->id, 'qty' => 50],
+            ],
+        ]));
+
+        $response->assertStatus(200);
+        $json = $response->json();
+
+        // Recommendations (per cabang terpadu) must be empty because 0 items are fully covered
+        $this->assertEmpty($json['recommendations']);
+
+        // But item_recommendations can still report partial surplus source
+        $this->assertNotEmpty($json['item_recommendations']);
+        $this->assertNotEmpty($json['item_recommendations'][0]['sources']);
+
+        // Now request qty: 10 (less than excess 20), so fully_covered_count is 1
+        $response2 = $this->actingAs($data['user'])->getJson(route('inventory.switching.recommendations', [
+            'destination_organization_id' => $data['orgDest']->id,
+            'items' => [
+                ['item_id' => $data['item']->id, 'qty' => 10],
+            ],
+        ]));
+
+        $response2->assertStatus(200);
+        $json2 = $response2->json();
+
+        // Recommendations (per cabang terpadu) must now include whSource
+        $this->assertCount(1, $json2['recommendations']);
+        $this->assertGreaterThanOrEqual(1, $json2['recommendations'][0]['fully_covered_count']);
+    }
 }

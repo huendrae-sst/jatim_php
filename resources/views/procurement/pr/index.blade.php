@@ -22,8 +22,10 @@
             case 'APPROVED': return 'text-bg-success';
             case 'FULLY_ORDERED': return 'text-bg-purple';
             case 'PARTIALLY_ORDERED': return 'text-bg-primary';
-            case 'SUBMITTED': return 'text-bg-warning';
-            case 'REJECTED': return 'text-bg-danger';
+            case 'WAITING_APPROVAL':
+            case 'SUBMITTED': return 'text-bg-warning text-dark';
+            case 'REJECTED':
+            case 'CANCELLED': return 'text-bg-danger';
             default: return 'text-bg-secondary';
         }
     },
@@ -138,11 +140,7 @@
             }];
         }
 
-        let hasPo = false;
-        if (pr.items) {
-            hasPo = pr.items.some(it => it.purchase_order_items && it.purchase_order_items.length > 0);
-        }
-        let canEdit = ['DRAFT', 'SUBMITTED', 'REJECTED'].includes(pr.status) || (pr.status === 'APPROVED' && !hasPo);
+        let canEdit = !['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED'].includes(pr.status);
 
         this.editPr = {
             id: pr.id,
@@ -213,6 +211,9 @@
         delete_url: ''
     },
     openDeleteModal(pr) {
+        if (['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED'].includes(pr.status)) {
+            return;
+        }
         this.deletePr = {
             id: pr.id,
             pr_number: pr.pr_number,
@@ -431,13 +432,13 @@
                                             'APPROVED' => 'text-bg-success',
                                             'FULLY_ORDERED' => 'text-bg-purple',
                                             'PARTIALLY_ORDERED' => 'text-bg-primary',
-                                            'SUBMITTED' => 'text-bg-warning',
-                                            'REJECTED' => 'text-bg-danger',
+                                            'WAITING_APPROVAL', 'SUBMITTED' => 'text-bg-warning text-dark',
+                                            'REJECTED', 'CANCELLED' => 'text-bg-danger',
                                             default => 'text-bg-secondary',
                                         };
                                     @endphp
-                                    <span class="badge {{ $badgeClass }} fs-9 text-uppercase">
-                                        {{ str_replace('_', ' ', $pr->status) }}
+                                    <span class="badge {{ $badgeClass }} fs-8 text-uppercase">
+                                        {{ str_replace('_', ' ', $pr->status ?? 'DRAFT') }}
                                     </span>
                                 </td>
 
@@ -447,7 +448,7 @@
                                         <!-- View Detail Button -->
                                         <button type="button" 
                                                 @click="openViewModal({{ Js::from($pr) }})" 
-                                                class="btn btn-sm btn-light border text-secondary shadow-2xs py-1 px-2" 
+                                                class="btn-action-icon text-secondary" 
                                                 title="Lihat Detail PR">
                                             <i class="bi bi-eye"></i>
                                         </button>
@@ -455,26 +456,46 @@
                                         <!-- Print Button -->
                                         <a href="{{ route('procurement.pr.print', $pr->id) }}" 
                                            target="_blank" 
-                                           class="btn btn-sm btn-light border text-dark shadow-2xs py-1 px-2" 
+                                           class="btn-action-icon text-dark" 
                                            title="Cetak Purchase Request">
                                             <i class="bi bi-printer"></i>
                                         </a>
 
                                         <!-- Edit Button -->
-                                        <button type="button" 
-                                                @click="openEditModal({{ Js::from($pr) }})" 
-                                                class="btn btn-sm btn-light border text-primary shadow-2xs py-1 px-2" 
-                                                title="Edit PR">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
+                                        @if(!in_array($pr->status, ['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED']))
+                                            <button type="button" 
+                                                    @click="openEditModal({{ Js::from($pr) }})" 
+                                                    class="btn-action-icon text-primary" 
+                                                    title="Edit PR">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        @else
+                                            <button type="button" 
+                                                    class="btn-action-icon text-secondary opacity-25" 
+                                                    disabled 
+                                                    style="cursor: not-allowed;" 
+                                                    title="PR status {{ str_replace('_', ' ', $pr->status) }} sudah tidak dapat diedit">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                        @endif
 
                                         <!-- Delete Button -->
-                                        <button type="button" 
-                                                @click="openDeleteModal({{ Js::from($pr) }})" 
-                                                class="btn btn-sm btn-light border text-danger shadow-2xs py-1 px-2" 
-                                                title="Hapus PR">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
+                                        @if(!in_array($pr->status, ['APPROVED', 'FULLY_ORDERED', 'PARTIALLY_ORDERED']))
+                                            <button type="button" 
+                                                    @click="openDeleteModal({{ Js::from($pr) }})" 
+                                                    class="btn-action-icon text-danger" 
+                                                    title="Hapus PR">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        @else
+                                            <button type="button" 
+                                                    class="btn-action-icon text-secondary opacity-25" 
+                                                    disabled 
+                                                    style="cursor: not-allowed;" 
+                                                    title="PR status {{ str_replace('_', ' ', $pr->status) }} sudah tidak dapat dihapus">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        @endif
                                     </div>
                                 </td>
                             </tr>

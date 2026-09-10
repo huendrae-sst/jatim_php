@@ -203,9 +203,9 @@ class EarlyWarningSystemTest extends TestCase
         $response->assertSee('SKU-OVR-03');
         $response->assertSee('Kritis / Stockout');
         $response->assertSee('Reorder (ROP)');
-        $response->assertSee('Overstock');
-        $response->assertSee('Dead Stock');
         $response->assertSee('Stok Rusak');
+        $response->assertDontSee('info-box-text fs-9 text-secondary fw-bold text-uppercase">Overstock<', false);
+        $response->assertDontSee('info-box-text fs-9 text-secondary fw-bold text-uppercase">Dead Stock<', false);
     }
 
     public function test_early_warning_filter_by_alert_type(): void
@@ -260,5 +260,65 @@ class EarlyWarningSystemTest extends TestCase
         $exitCode = Artisan::call('inventory:ews-scan');
 
         $this->assertEquals(0, $exitCode);
+    }
+
+    public function test_early_warning_lead_time_comparison_between_pr_and_switching(): void
+    {
+        $data = $this->setupScenario();
+        $service = app(EarlyWarningService::class);
+
+        // Create a secondary warehouse with surplus for itemStockout
+        $secondOrg = Organization::create([
+            'code' => 'KC-MLG',
+            'name' => 'Kantor Cabang Malang',
+            'type' => 'MAIN_BRANCH',
+        ]);
+        $secondWarehouse = Warehouse::create([
+            'organization_id' => $secondOrg->id,
+            'code' => 'WH-MLG-01',
+            'name' => 'Gudang Cabang Malang',
+            'type' => 'BRANCH_STORAGE',
+            'is_active' => true,
+        ]);
+        StockBalance::create([
+            'warehouse_id' => $secondWarehouse->id,
+            'item_id' => $data['itemStockout']->id,
+            'on_hand' => 60,
+            'reserved' => 0,
+            'hold' => 0,
+            'damaged' => 0,
+        ]);
+
+        // Evaluate itemStockout for primary warehouse: switching should be available and faster
+        $evalStockout = $service->evaluateItem($data['itemStockout'], $data['warehouse']->id);
+        $this->assertNotNull($evalStockout['lead_time_comparison']);
+        $this->assertTrue($evalStockout['lead_time_comparison']['switching_available']);
+        $this->assertEquals('SWITCHING', $evalStockout['lead_time_comparison']['faster_method']);
+        $this->assertGreaterThan(0, $evalStockout['lead_time_comparison']['days_saved']);
+        $this->assertEquals($secondWarehouse->id, $evalStockout['lead_time_comparison']['best_source']['warehouse_id']);
+
+        // Evaluate itemReorder for primary warehouse (no other warehouse has surplus for itemReorder): switching should NOT be available
+        $evalReorder = $service->evaluateItem($data['itemReorder'], $data['warehouse']->id);
+        $this->assertNotNull($evalReorder['lead_time_comparison']);
+        $this->assertFalse($evalReorder['lead_time_comparison']['switching_available']);
+        $this->assertEquals('PR', $evalReorder['lead_time_comparison']['faster_method']);
+
+        // Check page view rendering
+        $response = $this->actingAs($data['admin'])->get(route('inventory.early_warning', [
+            'warehouse_id' => $data['warehouse']->id,
+        ]));
+
+        $response->assertStatus(200);
+        $response->assertSee('Perbandingan Kecepatan');
+        $response->assertSee('Switching Stock (Kurir)');
+        $response->assertSee('Pengadaan PR (Vendor)');
+        $response->assertSee('Switching Lebih Cepat');
+
+        // Check stock card action button includes both itemId and warehouse_id parameters
+        $expectedStockCardUrl = route('inventory.stock_card', [
+            'itemId' => $data['itemStockout']->id,
+            'warehouse_id' => $data['warehouse']->id,
+        ]);
+        $response->assertSee($expectedStockCardUrl, false);
     }
 }
