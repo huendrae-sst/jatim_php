@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\ChartOfAccount;
 use App\Models\CostCenter;
 use App\Models\Courier;
+use App\Models\ExpeditionMapping;
 use App\Models\Item;
 use App\Models\ItemConversion;
 use App\Models\Notification;
@@ -15,7 +16,10 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\Warehouse;
+use App\Services\EarlyWarningService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -1008,6 +1012,179 @@ class MasterDataController extends Controller
         $budget = Budget::create($validated);
 
         return back()->with('success', "Alokasi Pagu Anggaran {$budget->cost_center_code} (T.A. {$budget->year}) berhasil ditambahkan.");
+    }
+
+    public function budgetUpdate(Request $request, $id)
+    {
+        $budget = Budget::findOrFail($id);
+
+        $validated = $request->validate([
+            'allocated_amount' => 'required|numeric|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        $budget->update($validated);
+
+        return back()->with('success', "Alokasi Pagu Anggaran {$budget->cost_center_code} (T.A. {$budget->year}) berhasil diperbarui.");
+    }
+
+    public function budgetDestroy($id)
+    {
+        $budget = Budget::findOrFail($id);
+        $code = $budget->cost_center_code;
+        $year = $budget->year;
+
+        $budget->delete();
+
+        return back()->with('success', "Alokasi Pagu Anggaran {$code} (T.A. {$year}) berhasil dihapus.");
+    }
+
+    /**
+     * EWS Anggaran Unit Kerja & Cabang (POC-09 & POC-45)
+     */
+    public function budgetsEarlyWarning(Request $request)
+    {
+        $year = (int) $request->get('year', date('Y'));
+        $riskLevel = $request->get('risk_level', 'ALL');
+        $search = $request->get('search');
+
+        $ewsService = app(EarlyWarningService::class);
+        $summary = $ewsService->getBudgetAlertSummary($year);
+        $evaluations = $ewsService->getBudgetEvaluations($year, $riskLevel);
+
+        if ($search) {
+            $evaluations = array_values(array_filter($evaluations, function ($e) use ($search) {
+                return str_contains(strtolower($e['organization_name']), strtolower($search))
+                    || str_contains(strtolower($e['organization_code']), strtolower($search))
+                    || str_contains(strtolower($e['cost_center_code']), strtolower($search));
+            }));
+        }
+
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
+        $currentPage = Paginator::resolveCurrentPage();
+        $totalEvaluations = count($evaluations);
+        $currentItems = array_slice($evaluations, ($currentPage - 1) * $perPage, $perPage);
+        $paginatedEvaluations = new LengthAwarePaginator(
+            $currentItems,
+            $totalEvaluations,
+            $perPage,
+            $currentPage,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
+        $organizations = Organization::where('is_active', true)
+            ->whereIn('type', ['MAIN_BRANCH', 'SUB_BRANCH'])
+            ->orderBy('name')
+            ->get();
+
+        return view('master.budgets.early_warning', [
+            'evaluations' => $paginatedEvaluations,
+            'summary' => $summary,
+            'year' => $year,
+            'riskLevel' => $riskLevel,
+            'search' => $search,
+            'perPage' => $perPage,
+            'organizations' => $organizations,
+            'currentYear' => $year,
+        ]);
+    }
+
+    public function notifyBudgetAlert(Request $request)
+    {
+        $year = (int) $request->get('year', date('Y'));
+        $ewsService = app(EarlyWarningService::class);
+        $count = $ewsService->scanAndNotifyBudgets($year);
+
+        return back()->with('success', "Peringatan dini berhasil diproses. Sebanyak {$count} notifikasi alert anggaran telah dikirimkan ke unit kerja terkait.");
+    }
+
+    /**
+     * Master Pemetaan Ekspedisi per Unit Kerja / Cabang (POC-35)
+     */
+    public function expeditionMappingsIndex(Request $request)
+    {
+        $search = $request->query('search');
+        $courierId = $request->query('courier_id');
+        $serviceType = $request->query('service_type');
+        $status = $request->query('status');
+        $perPage = in_array((int) $request->get('per_page'), [5, 10, 15, 25, 50], true) ? (int) $request->get('per_page') : 10;
+
+        $query = ExpeditionMapping::with(['organization', 'courier']);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('notes', 'like', "%{$search}%")
+                    ->orWhere('default_service_type', 'like', "%{$search}%")
+                    ->orWhereHas('organization', function ($oq) use ($search) {
+                        $oq->where('name', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%")
+                            ->orWhere('city', 'like', "%{$search}%");
+                    })
+                    ->orWhereHas('courier', function ($cq) use ($search) {
+                        $cq->where('name', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%");
+                    });
+            });
+        }
+
+        if ($courierId && $courierId !== 'ALL') {
+            $query->where('courier_id', $courierId);
+        }
+
+        if ($serviceType && $serviceType !== 'ALL') {
+            $query->where('default_service_type', $serviceType);
+        }
+
+        if ($status && $status !== 'ALL') {
+            $query->where('is_active', $status === 'ACTIVE' || $status === '1');
+        }
+
+        $mappings = $query->latest()->paginate($perPage)->withQueryString();
+        $couriers = Courier::where('is_active', true)->orderBy('name')->get();
+        $organizations = Organization::whereIn('type', ['MAIN_BRANCH', 'SUB_BRANCH'])->orderBy('name')->get();
+
+        return view('master.expedition_mappings.index', compact(
+            'mappings',
+            'couriers',
+            'organizations',
+            'search',
+            'courierId',
+            'serviceType',
+            'status',
+            'perPage'
+        ));
+    }
+
+    public function expeditionMappingStore(Request $request)
+    {
+        $request->validate([
+            'organization_id' => 'required|exists:organizations,id',
+            'courier_id' => 'required|exists:couriers,id',
+            'default_service_type' => 'required|string',
+            'notes' => 'nullable|string|max:500',
+        ]);
+
+        ExpeditionMapping::updateOrCreate(
+            [
+                'organization_id' => $request->organization_id,
+                'courier_id' => $request->courier_id,
+            ],
+            [
+                'default_service_type' => $request->default_service_type,
+                'is_active' => true,
+                'notes' => $request->notes,
+            ]
+        );
+
+        return back()->with('success', 'Konfigurasi pemetaan ekspedisi cabang berhasil disimpan.');
+    }
+
+    public function expeditionMappingDestroy($id)
+    {
+        $mapping = ExpeditionMapping::findOrFail($id);
+        $mapping->delete();
+
+        return back()->with('success', 'Pemetaan ekspedisi berhasil dihapus.');
     }
 
     public function vendorStore(Request $request)

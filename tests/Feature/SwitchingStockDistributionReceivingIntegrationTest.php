@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\OrderFulfillmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class SwitchingStockDistributionReceivingIntegrationTest extends TestCase
@@ -357,6 +358,7 @@ class SwitchingStockDistributionReceivingIntegrationTest extends TestCase
             ->post(route('receiving.confirm.store', $shipment->id), [
                 'pod_signature' => 'Budi Santoso',
                 'notes' => 'Terdapat buku basah dan paket sobek',
+                'berita_acara_pdf' => UploadedFile::fake()->create('berita_acara_rusak.pdf', 100, 'application/pdf'),
                 'items' => [
                     [
                         'switching_stock_item_id' => $switchingItem->id,

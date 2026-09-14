@@ -19,3 +19,9 @@ yarn-error.log
 /.vscode
 .DS_Store
 Thumbs.db
+bank_jatim_jims_workflow_specification.md
+Skenario_Pengujian_End_to_End_JIMS_Bank_Jatim.xlsx
+/.agents
+/.claude
+database/*.sqlite
+database/*.sqlite-journal

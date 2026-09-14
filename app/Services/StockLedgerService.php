@@ -215,4 +215,110 @@ class StockLedgerService
             ]);
         });
     }
+
+    public function recordReturnOut(Warehouse $warehouse, Item $item, int $qty, string $refNo, string $condition = 'DAMAGED', ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qty, $refNo, $condition, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+
+            if ($condition === 'DAMAGED' && $balance->damaged >= $qty) {
+                $balance->damaged -= $qty;
+            } else {
+                $balance->on_hand = max(0, $balance->on_hand - $qty);
+            }
+            $balance->save();
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'RETURN_OUT',
+                'reference_number' => $refNo,
+                'qty_in' => 0,
+                'qty_out' => $qty,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => $qty * $item->estimated_unit_price,
+                'notes' => "Pengeluaran Retur Barang ke Pusat ({$refNo})",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
+
+    public function recordReturnIn(Warehouse $warehouse, Item $item, int $qtyGood, int $qtyDamaged, string $refNo, ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qtyGood, $qtyDamaged, $refNo, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+            $balance->on_hand += $qtyGood;
+            $balance->damaged += $qtyDamaged;
+            $balance->save();
+
+            $totalQty = $qtyGood + $qtyDamaged;
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'RETURN_IN',
+                'reference_number' => $refNo,
+                'qty_in' => $totalQty,
+                'qty_out' => 0,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => $totalQty * $item->estimated_unit_price,
+                'notes' => "Penerimaan Retur dari Cabang ({$refNo}) - Bagus: {$qtyGood}, Rusak: {$qtyDamaged}",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
+
+    public function recordDestruction(Warehouse $warehouse, Item $item, int $qty, string $refNo, ?User $user = null, ?string $notes = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qty, $refNo, $user, $notes) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+
+            // Deduct from damaged if available, otherwise from on_hand
+            if ($balance->damaged >= $qty) {
+                $balance->damaged -= $qty;
+            } else {
+                $balance->on_hand = max(0, $balance->on_hand - $qty);
+            }
+            $balance->save();
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'DESTROYED',
+                'reference_number' => $refNo,
+                'qty_in' => 0,
+                'qty_out' => $qty,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => $qty * $item->estimated_unit_price,
+                'notes' => $notes ?: "Pemusnahan Barang Resmi ({$refNo})",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
+
+    public function recordProductionIssue(Warehouse $warehouse, Item $item, int $qty, string $refNo, ?User $user = null): StockLedger
+    {
+        return DB::transaction(function () use ($warehouse, $item, $qty, $refNo, $user) {
+            $balance = $this->getOrCreateBalance($warehouse, $item);
+            $balance->on_hand = max(0, $balance->on_hand - $qty);
+            $balance->save();
+
+            return StockLedger::create([
+                'warehouse_id' => $warehouse->id,
+                'item_id' => $item->id,
+                'transaction_type' => 'PRODUCTION_ISSUE',
+                'reference_number' => $refNo,
+                'qty_in' => 0,
+                'qty_out' => $qty,
+                'balance_after' => $balance->on_hand,
+                'unit_cost' => $item->estimated_unit_price,
+                'total_value' => $qty * $item->estimated_unit_price,
+                'notes' => "Pengeluaran Bahan Baku Bon Produksi Personalisasi ({$refNo})",
+                'created_by_user_id' => $user?->id,
+            ]);
+        });
+    }
 }

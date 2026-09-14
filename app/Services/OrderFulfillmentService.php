@@ -48,22 +48,30 @@ class OrderFulfillmentService
                 $totalEstValue += ((int) $it['qty'] * (float) $itemModel->estimated_unit_price);
             }
 
-            // Verify requesting branch budget
+            // Verify requesting branch budget & calculate projected utilization (POC-07, POC-08, POC-10)
             $currentYear = (int) date('Y');
             $budget = Budget::where('organization_id', $organizationId)->where('year', $currentYear)->first();
-            if ($budget && $budget->available_amount < $totalEstValue) {
-                // Warning or alert
+            $isOverbudget = false;
+            $projectedUtilization = 0.0;
+
+            if ($budget && $budget->allocated_amount > 0) {
+                $projectedExposure = (float) $budget->committed_amount + (float) $budget->realized_amount + $totalEstValue;
+                $projectedUtilization = round(($projectedExposure / (float) $budget->allocated_amount) * 100, 2);
+                $isOverbudget = $projectedUtilization > 100.0;
             }
 
             $order = Order::create([
                 'order_number' => $orderNumber,
                 'requesting_organization_id' => $organizationId,
                 'requesting_warehouse_id' => $warehouseId,
+                'budget_id' => $budget?->id,
                 'created_by_user_id' => $user->id,
                 'priority' => $priority,
                 'required_date' => $requiredDate,
                 'total_items' => $totalItems,
                 'total_estimated_value' => $totalEstValue,
+                'is_overbudget' => $isOverbudget,
+                'projected_utilization' => $projectedUtilization,
                 'status' => 'SUBMITTED',
                 'notes' => $notes,
                 'submitted_at' => now(),
@@ -99,16 +107,67 @@ class OrderFulfillmentService
         });
     }
 
-    public function approveOrder(Order $order, User $approver): Order
+    public function approveOrder(Order $order, User $approver, ?string $overbudgetReason = null): Order
     {
         if ($order->created_by_user_id === $approver->id) {
             throw new Exception('Segregation of Duties: Pembuat order tidak boleh menyetujui order sendiri.');
         }
 
-        return DB::transaction(function () use ($order, $approver) {
+        return DB::transaction(function () use ($order, $approver, $overbudgetReason) {
             $order->status = 'APPROVED';
             $order->approved_by_user_id = $approver->id;
             $order->approved_at = now();
+
+            // Handle Budget Commitment & Early Warning (POC-07, POC-08, POC-09, POC-10)
+            $currentYear = (int) date('Y');
+            $budget = $order->budget ?: Budget::where('organization_id', $order->requesting_organization_id)->where('year', $currentYear)->first();
+            if ($budget) {
+                $order->budget_id = $budget->id;
+                $budget->committed_amount += (float) $order->total_estimated_value;
+                $budget->save();
+
+                // Check Early Warning Threshold (POC-09)
+                $utilization = $budget->utilization_percentage;
+                if ($utilization >= 100.0) {
+                    NotificationService::sendAlert(
+                        'Peringatan Anggaran Maksimum (>100%)',
+                        "Anggaran unit {$order->requestingOrganization->name} telah mencapai {$utilization}% (Rp ".number_format($budget->committed_amount + $budget->realized_amount, 0, ',', '.').' dari pagu Rp '.number_format($budget->allocated_amount, 0, ',', '.').').',
+                        'CRITICAL',
+                        'BUDGET_OFFICER',
+                        $budget->organization_id,
+                        'BUDGET',
+                        $budget->id,
+                        '/master/budgets'
+                    );
+                } elseif ($utilization >= 90.0) {
+                    NotificationService::sendAlert(
+                        'Peringatan Anggaran Critical (>=90%)',
+                        "Anggaran unit {$order->requestingOrganization->name} telah mencapai {$utilization}%.",
+                        'WARNING',
+                        'BUDGET_OFFICER',
+                        $budget->organization_id,
+                        'BUDGET',
+                        $budget->id,
+                        '/master/budgets'
+                    );
+                } elseif ($utilization >= 80.0) {
+                    NotificationService::sendAlert(
+                        'Peringatan Anggaran Warning (>=80%)',
+                        "Anggaran unit {$order->requestingOrganization->name} telah mencapai {$utilization}%.",
+                        'INFO',
+                        'BUDGET_OFFICER',
+                        $budget->organization_id,
+                        'BUDGET',
+                        $budget->id,
+                        '/master/budgets'
+                    );
+                }
+            }
+
+            if ($order->is_overbudget) {
+                $order->overbudget_approval_reason = $overbudgetReason ?: 'Disetujui dengan otorisasi khusus dispensasi overbudget';
+            }
+
             $order->save();
 
             // Set approved qty = requested qty
@@ -150,7 +209,11 @@ class OrderFulfillmentService
             $order->status = 'ALLOCATED';
             $order->save();
 
-            AuditTrailService::log('APPROVE_ORDER', $order, null, ['status' => 'ALLOCATED'], $approver);
+            AuditTrailService::log('APPROVE_ORDER', $order, null, [
+                'status' => 'ALLOCATED',
+                'is_overbudget' => $order->is_overbudget,
+                'overbudget_approval_reason' => $order->overbudget_approval_reason,
+            ], $approver);
 
             NotificationService::sendUser(
                 $order->created_by_user_id,
@@ -182,6 +245,16 @@ class OrderFulfillmentService
     public function rejectOrder(Order $order, User $user, ?string $reason = null): Order
     {
         return DB::transaction(function () use ($order, $user, $reason) {
+            // Release committed budget if previously committed or approved (POC-08)
+            if (in_array($order->status, ['APPROVED', 'ALLOCATED', 'PICKING', 'PACKING', 'READY_TO_SHIP'])) {
+                $currentYear = (int) date('Y');
+                $budget = $order->budget ?: Budget::where('organization_id', $order->requesting_organization_id)->where('year', $currentYear)->first();
+                if ($budget) {
+                    $budget->committed_amount = max(0, (float) $budget->committed_amount - (float) $order->total_estimated_value);
+                    $budget->save();
+                }
+            }
+
             $order->status = 'REJECTED';
             if ($reason) {
                 $order->notes = trim($order->notes.' | Alasan Penolakan: '.$reason);
@@ -307,15 +380,17 @@ class OrderFulfillmentService
 
     public function createShipment(
         Order $order,
-        int $courierId,
+        ?int $courierId,
         string $serviceType,
         string $trackingNumber,
         float $shippingCost,
         string $etaDate,
-        User $user
+        User $user,
+        string $deliveryMethod = 'COURIER',
+        ?array $pickupData = null
     ): Shipment {
-        return DB::transaction(function () use ($order, $courierId, $serviceType, $trackingNumber, $shippingCost, $etaDate, $user) {
-            $manifestNumber = 'MNF/'.date('Y/m').'/'.sprintf('%04d', Shipment::count() + 1);
+        return DB::transaction(function () use ($order, $courierId, $serviceType, $trackingNumber, $shippingCost, $etaDate, $user, $deliveryMethod, $pickupData) {
+            $manifestNumber = ($deliveryMethod === 'PICKUP_KP' ? 'PKP/' : 'MNF/').date('Y/m').'/'.sprintf('%04d', Shipment::count() + 1);
             $centralWarehouse = Warehouse::where('type', 'CENTRAL_LOGISTICS')->first();
             $packing = $order->packings->last();
 
@@ -334,6 +409,11 @@ class OrderFulfillmentService
                 'eta_date' => $etaDate,
                 'status' => 'IN_TRANSIT',
                 'dispatched_at' => now(),
+                'delivery_method' => $deliveryMethod,
+                'pickup_pic_nip' => $deliveryMethod === 'PICKUP_KP' ? ($pickupData['nip'] ?? null) : null,
+                'pickup_pic_name' => $deliveryMethod === 'PICKUP_KP' ? ($pickupData['name'] ?? null) : null,
+                'pickup_pic_position' => $deliveryMethod === 'PICKUP_KP' ? ($pickupData['position'] ?? null) : null,
+                'pickup_notes' => $deliveryMethod === 'PICKUP_KP' ? ($pickupData['notes'] ?? null) : null,
             ]);
 
             // Mutate stock out from origin warehouse & deduct reserved
@@ -494,9 +574,11 @@ class OrderFulfillmentService
         array $receivedItemsData,
         string $podSignature,
         ?string $notes,
-        User $user
+        User $user,
+        ?string $beritaAcaraPath = null,
+        ?string $beritaAcaraFilename = null
     ): Receiving {
-        return DB::transaction(function () use ($shipment, $receivedItemsData, $podSignature, $notes, $user) {
+        return DB::transaction(function () use ($shipment, $receivedItemsData, $podSignature, $notes, $user, $beritaAcaraPath, $beritaAcaraFilename) {
             $rcvNumber = 'RCV/'.date('Y/m').'/'.sprintf('%04d', Receiving::count() + 1);
             $order = $shipment->order;
             $switching = $shipment->switchingStock;
@@ -552,6 +634,8 @@ class OrderFulfillmentService
                                 'qty_damaged' => $qtyDamaged,
                                 'resolution_status' => 'REPORTED',
                                 'resolution_notes' => "Ditemukan {$qtyDamaged} barang rusak pada penerimaan switching stock.",
+                                'berita_acara_path' => $beritaAcaraPath,
+                                'berita_acara_filename' => $beritaAcaraFilename,
                             ]);
                         }
                         if ($qtyMissing > 0) {
@@ -565,6 +649,8 @@ class OrderFulfillmentService
                                 'qty_damaged' => $qtyMissing,
                                 'resolution_status' => 'REPORTED',
                                 'resolution_notes' => "Ditemukan {$qtyMissing} barang kurang pada penerimaan switching stock.",
+                                'berita_acara_path' => $beritaAcaraPath,
+                                'berita_acara_filename' => $beritaAcaraFilename,
                             ]);
                         }
                     }
@@ -601,6 +687,8 @@ class OrderFulfillmentService
                                 'qty_damaged' => $qtyDamaged,
                                 'resolution_status' => 'REPORTED',
                                 'resolution_notes' => "Ditemukan {$qtyDamaged} barang rusak pada penerimaan.",
+                                'berita_acara_path' => $beritaAcaraPath,
+                                'berita_acara_filename' => $beritaAcaraFilename,
                             ]);
                         }
                         if ($qtyMissing > 0) {
@@ -614,6 +702,8 @@ class OrderFulfillmentService
                                 'qty_damaged' => $qtyMissing,
                                 'resolution_status' => 'REPORTED',
                                 'resolution_notes' => "Ditemukan {$qtyMissing} barang kurang pada penerimaan.",
+                                'berita_acara_path' => $beritaAcaraPath,
+                                'berita_acara_filename' => $beritaAcaraFilename,
                             ]);
                         }
                     }

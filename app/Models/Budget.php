@@ -36,4 +36,28 @@ class Budget extends Model
 
         return round((($this->committed_amount + $this->realized_amount) / $this->allocated_amount) * 100, 2);
     }
+
+    public function getBudgetStatusAttribute(): string
+    {
+        $rate = $this->utilization_percentage;
+        if ($rate >= 100) {
+            return 'OVERBUDGET_BLOCK';
+        } elseif ($rate >= 90) {
+            return 'CRITICAL_90';
+        } elseif ($rate >= 80) {
+            return 'WARNING_80';
+        }
+
+        return 'SAFE';
+    }
+
+    public function getStatusBadgeAttribute(): string
+    {
+        return match ($this->budget_status) {
+            'OVERBUDGET_BLOCK' => '<span class="badge bg-danger"><i class="bi bi-slash-circle me-1"></i>Overbudget &ge;100%</span>',
+            'CRITICAL_90' => '<span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>Kritis &ge;90%</span>',
+            'WARNING_80' => '<span class="badge bg-info text-dark"><i class="bi bi-exclamation-circle me-1"></i>Siaga &ge;80%</span>',
+            default => '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Aman &lt;80%</span>',
+        };
+    }
 }

@@ -16,6 +16,7 @@ use App\Services\ProcurementService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 
 class ReceivingController extends Controller
 {
@@ -175,7 +176,17 @@ class ReceivingController extends Controller
             return back()->with('error', 'Anda tidak berwenang menerima pengiriman untuk unit kerja lain.');
         }
 
-        $request->validate([
+        $hasDiscrepancy = false;
+        if (is_array($request->items)) {
+            foreach ($request->items as $it) {
+                if (((int) ($it['qty_damaged'] ?? 0)) > 0 || ((int) ($it['qty_missing'] ?? 0)) > 0) {
+                    $hasDiscrepancy = true;
+                    break;
+                }
+            }
+        }
+
+        $rules = [
             'pod_signature' => 'required|string',
             'items' => 'required|array|min:1',
             'items.*.order_item_id' => 'nullable|exists:order_items,id',
@@ -183,7 +194,26 @@ class ReceivingController extends Controller
             'items.*.qty_good' => 'required|integer|min:0',
             'items.*.qty_damaged' => 'nullable|integer|min:0',
             'items.*.qty_missing' => 'nullable|integer|min:0',
+        ];
+
+        // POC-38: Quantity missing/damaged mewajibkan upload file Berita Acara mandatory .pdf
+        if ($hasDiscrepancy) {
+            $rules['berita_acara_pdf'] = 'required|file|mimes:pdf|max:10240';
+        }
+
+        $request->validate($rules, [
+            'berita_acara_pdf.required' => 'Wajib mengunggah file Berita Acara format PDF (.pdf) jika terdapat barang rusak atau hilang.',
+            'berita_acara_pdf.mimes' => 'Format file Berita Acara harus berupa PDF (.pdf).',
+            'berita_acara_pdf.max' => 'Ukuran file Berita Acara maksimal 10 MB.',
         ]);
+
+        $baPath = null;
+        $baFilename = null;
+        if ($request->hasFile('berita_acara_pdf')) {
+            $file = $request->file('berita_acara_pdf');
+            $baFilename = $file->getClientOriginalName();
+            $baPath = $file->store('berita_acara', 'public');
+        }
 
         try {
             $rcv = $this->orderFulfillmentService->processReceiving(
@@ -191,7 +221,9 @@ class ReceivingController extends Controller
                 $request->items,
                 $request->pod_signature,
                 $request->notes ?? '',
-                Auth::user()
+                Auth::user(),
+                $baPath,
+                $baFilename
             );
 
             return redirect()->route('receiving.index')
@@ -401,5 +433,18 @@ class ReceivingController extends Controller
         } catch (Exception $e) {
             return back()->withInput()->with('error', 'Gagal memproses penerimaan barang: '.$e->getMessage());
         }
+    }
+
+    public function downloadBeritaAcara($id)
+    {
+        $discrepancy = Discrepancy::findOrFail($id);
+        if (! $discrepancy->berita_acara_path || ! Storage::disk('public')->exists($discrepancy->berita_acara_path)) {
+            return back()->with('error', 'Dokumen Berita Acara (.pdf) tidak ditemukan di sistem penyimpanan.');
+        }
+
+        return Storage::disk('public')->download(
+            $discrepancy->berita_acara_path,
+            $discrepancy->berita_acara_filename ?: "berita_acara_discrepancy_{$discrepancy->id}.pdf"
+        );
     }
 }

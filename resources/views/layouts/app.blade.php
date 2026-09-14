@@ -992,13 +992,13 @@
 
                         @auth
                             <!-- Section: Operasional Transaksi -->
-                            @if(auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('warehouse') || auth()->user()->canAccessModule('receiving'))
+                            @if(auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('warehouse') || auth()->user()->canAccessModule('receiving') || auth()->user()->canAccessModule('emboss') || auth()->user()->canAccessModule('production') || auth()->user()->canAccessModule('returns') || auth()->user()->canAccessModule('destructions'))
                                 <!-- <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Operasional Transaksi</li> -->
 
-                                <!-- Permintaan & Orders -->
-                                @if(auth()->user()->canAccessModule('orders'))
-                                    <li class="nav-item {{ request()->routeIs('orders.*') ? 'menu-open' : '' }}">
-                                        <a href="#" class="nav-link {{ request()->routeIs('orders.*') ? 'active' : '' }}">
+                                <!-- Permintaan & Orders (Termasuk Emboss & Produksi) -->
+                                @if(auth()->user()->canAccessModule('orders') || auth()->user()->canAccessModule('emboss') || auth()->user()->canAccessModule('production'))
+                                    <li class="nav-item {{ request()->routeIs('orders.*') || request()->routeIs('emboss.*') || request()->routeIs('production.*') ? 'menu-open' : '' }}">
+                                        <a href="#" class="nav-link {{ request()->routeIs('orders.*') || request()->routeIs('emboss.*') || request()->routeIs('production.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-cart3"></i>
                                             <p>
                                                 Permintaan & Order
@@ -1006,17 +1006,35 @@
                                             </p>
                                         </a>
                                         <ul class="nav nav-treeview">
-                                            <li class="nav-item">
-                                                <a href="{{ route('orders.index') }}" class="nav-link {{ (request()->routeIs('orders.index') || request()->routeIs('orders.create')) && !request()->routeIs('orders.approvals*') ? 'active' : '' }}">
-                                                    <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Order</p>
-                                                </a>
-                                            </li>
-                                            @if(auth()->user()->canAccessModule('order_approvals'))
+                                            @if(auth()->user()->canAccessModule('orders'))
                                                 <li class="nav-item">
-                                                    <a href="{{ route('orders.approvals') }}" class="nav-link {{ request()->routeIs('orders.approvals*') ? 'active' : '' }}">
+                                                    <a href="{{ route('orders.index') }}" class="nav-link {{ (request()->routeIs('orders.index') || request()->routeIs('orders.create')) && !request()->routeIs('orders.approvals*') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
-                                                        <p>Persetujuan Order</p>
+                                                        <p>Order</p>
+                                                    </a>
+                                                </li>
+                                                @if(auth()->user()->canAccessModule('order_approvals'))
+                                                    <li class="nav-item">
+                                                        <a href="{{ route('orders.approvals') }}" class="nav-link {{ request()->routeIs('orders.approvals*') ? 'active' : '' }}">
+                                                            <i class="nav-icon bi bi-circle"></i>
+                                                            <p>Persetujuan Order</p>
+                                                        </a>
+                                                    </li>
+                                                @endif
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('emboss'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('emboss.index') }}" class="nav-link {{ request()->routeIs('emboss.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Riwayat Berkas</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('production'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('production.index') }}" class="nav-link {{ request()->routeIs('production.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Bon Produksi</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1099,16 +1117,17 @@
                                         </ul>
                                     </li>
                                 @endif
+
                             @endif
 
                             <!-- Section: Inventory & Supply Chain -->
-                            @if(auth()->user()->canAccessModule('inventory') || auth()->user()->canAccessModule('procurement') || auth()->user()->canAccessModule('finance'))
+                            @if(auth()->user()->canAccessModule('inventory') || auth()->user()->canAccessModule('returns') || auth()->user()->canAccessModule('destructions') || auth()->user()->canAccessModule('procurement') || auth()->user()->canAccessModule('finance'))
                                 <!-- <li class="nav-header text-uppercase fs-8 fw-bold px-3 pt-3 pb-1">Persediaan & Pengadaan</li> -->
 
                                 <!-- Manajemen Persediaan -->
-                                @if(auth()->user()->canAccessModule('inventory'))
-                                    <li class="nav-item {{ request()->routeIs('inventory.*') ? 'menu-open' : '' }}">
-                                        <a href="#" class="nav-link {{ request()->routeIs('inventory.*') ? 'active' : '' }}">
+                                @if(auth()->user()->canAccessModule('inventory') || auth()->user()->canAccessModule('returns') || auth()->user()->canAccessModule('destructions'))
+                                    <li class="nav-item {{ request()->routeIs('inventory.*') || request()->routeIs('returns.*') || request()->routeIs('destructions.*') ? 'menu-open' : '' }}">
+                                        <a href="#" class="nav-link {{ request()->routeIs('inventory.*') || request()->routeIs('returns.*') || request()->routeIs('destructions.*') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-stack"></i>
                                             <p>
                                                 Persediaan
@@ -1116,12 +1135,42 @@
                                             </p>
                                         </a>
                                         <ul class="nav nav-treeview">
-                                            <li class="nav-item">
-                                                <a href="{{ route('inventory.balances') }}" class="nav-link {{ request()->routeIs('inventory.balances') ? 'active' : '' }}">
-                                                    <i class="nav-icon bi bi-circle"></i>
-                                                    <p>Stock Balances</p>
-                                                </a>
-                                            </li>
+                                            @if(auth()->user()->canAccessModule('inventory'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('inventory.balances') }}" class="nav-link {{ request()->routeIs('inventory.balances') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Stock Balances</p>
+                                                    </a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a href="{{ route('inventory.reconciliation') }}" class="nav-link {{ request()->routeIs('inventory.reconciliation') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Rekonsiliasi Stok</p>
+                                                    </a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a href="{{ route('inventory.movement_inquiry') }}" class="nav-link {{ request()->routeIs('inventory.movement_inquiry') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Inquiry Histori Mutasi</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('returns'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('returns.index') }}" class="nav-link {{ request()->routeIs('returns.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Retur Barang</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('destructions'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('destructions.index') }}" class="nav-link {{ request()->routeIs('destructions.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Pemusnahan (BA)</p>
+                                                    </a>
+                                                </li>
+                                            @endif
                                             @if(auth()->user()->canAccessModule('inventory_ops'))
                                                 <li class="nav-item">
                                                     <a href="{{ route('inventory.initial_stock.index') }}" class="nav-link {{ request()->routeIs('inventory.initial_stock.*') ? 'active' : '' }}">
@@ -1230,13 +1279,34 @@
                                     </li>
                                 @endif
 
-                                <!-- Settlement Keuangan -->
-                                @if(auth()->user()->canAccessModule('finance'))
-                                    <li class="nav-item">
-                                        <a href="{{ route('finance.settlements.index') }}" class="nav-link {{ request()->routeIs('finance.settlements.*') ? 'active' : '' }}">
+                                <!-- Finance: Settlement & EWS Anggaran -->
+                                @if(auth()->user()->canAccessModule('finance') || auth()->user()->canAccessModule('master_budgets'))
+                                    <li class="nav-item {{ request()->routeIs('finance.*') || request()->routeIs('master.budgets.early_warning') ? 'menu-open' : '' }}">
+                                        <a href="#" class="nav-link {{ request()->routeIs('finance.*') || request()->routeIs('master.budgets.early_warning') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-cash-stack"></i>
-                                            <p>Settlement </p>
+                                            <p>
+                                                Finance
+                                                <i class="nav-arrow bi bi-chevron-right"></i>
+                                            </p>
                                         </a>
+                                        <ul class="nav nav-treeview">
+                                            @if(auth()->user()->canAccessModule('finance'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('finance.settlements.index') }}" class="nav-link {{ request()->routeIs('finance.settlements.*') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Settlement</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                            @if(auth()->user()->canAccessModule('master_budgets'))
+                                                <li class="nav-item">
+                                                    <a href="{{ route('master.budgets.early_warning') }}" class="nav-link {{ request()->routeIs('master.budgets.early_warning') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>EWS Anggaran</p>
+                                                    </a>
+                                                </li>
+                                            @endif
+                                        </ul>
                                     </li>
                                 @endif
                             @endif
@@ -1247,8 +1317,8 @@
 
                                 <!-- Master Data -->
                                 @if(auth()->user()->canAccessModule('master_data') || auth()->user()->canAccessModule('master_items') || auth()->user()->canAccessModule('master_budgets') || auth()->user()->canAccessModule('master_accounting') || auth()->user()->canAccessModule('master_vendors') || auth()->user()->canAccessModule('master_users'))
-                                    <li class="nav-item {{ request()->routeIs('master.*') ? 'menu-open' : '' }}">
-                                        <a href="#" class="nav-link {{ request()->routeIs('master.*') ? 'active' : '' }}">
+                                    <li class="nav-item {{ request()->routeIs('master.*') && !request()->routeIs('master.budgets.early_warning') ? 'menu-open' : '' }}">
+                                        <a href="#" class="nav-link {{ request()->routeIs('master.*') && !request()->routeIs('master.budgets.early_warning') ? 'active' : '' }}">
                                             <i class="nav-icon bi bi-gear-wide-connected"></i>
                                             <p>
                                                 Master Data
@@ -1293,6 +1363,12 @@
                                                     <a href="{{ route('master.vendors') }}" class="nav-link {{ request()->routeIs('master.vendors') ? 'active' : '' }}">
                                                         <i class="nav-icon bi bi-circle"></i>
                                                         <p>Vendor & Ekspedisi</p>
+                                                    </a>
+                                                </li>
+                                                <li class="nav-item">
+                                                    <a href="{{ route('master.expedition_mappings') }}" class="nav-link {{ request()->routeIs('master.expedition_mappings') ? 'active' : '' }}">
+                                                        <i class="nav-icon bi bi-circle"></i>
+                                                        <p>Pemetaan Ekspedisi</p>
                                                     </a>
                                                 </li>
                                             @endif
@@ -1405,6 +1481,14 @@
                                                 <a href="{{ route('reports.stock_valuation') }}" class="nav-link {{ request()->routeIs('reports.stock_valuation') ? 'active' : '' }}">
                                                     <i class="nav-icon bi bi-circle"></i>
                                                     <p>Valuasi Persediaan</p>
+                                                </a>
+                                            </li>
+                                        @endif
+                                        @if(auth()->user()->canAccessReport('stock_distribution'))
+                                            <li class="nav-item">
+                                                <a href="{{ route('reports.stock_distribution') }}" class="nav-link {{ request()->routeIs('reports.stock_distribution*') ? 'active' : '' }}">
+                                                    <i class="nav-icon bi bi-circle"></i>
+                                                    <p>Sebaran Stok Wilayah</p>
                                                 </a>
                                             </li>
                                         @endif

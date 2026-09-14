@@ -74,9 +74,34 @@
         <div class="card-body p-3 bg-body-tertiary border-bottom">
             <form action="{{ route('inventory.forecasting') }}" method="GET">
                 <input type="hidden" name="per_page" value="{{ $perPage }}">
+                <input type="hidden" name="horizon" value="{{ $horizon }}">
                 <div class="row g-2 align-items-center">
+                    <!-- Horizon Selector Pills -->
+                    <div class="col-12 col-xl-auto mb-1 mb-xl-0">
+                        <label class="form-label fs-9 text-muted d-block mb-1 fw-bold text-uppercase">Horizon Perencanaan:</label>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <a href="{{ route('inventory.forecasting', array_merge(request()->query(), ['horizon' => 1])) }}" 
+                               class="btn {{ $horizon === 1 ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary' }}">
+                                1 Bulan
+                            </a>
+                            <a href="{{ route('inventory.forecasting', array_merge(request()->query(), ['horizon' => 3])) }}" 
+                               class="btn {{ $horizon === 3 ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary' }}">
+                                3 Bulan (Triwulan)
+                            </a>
+                            <a href="{{ route('inventory.forecasting', array_merge(request()->query(), ['horizon' => 6])) }}" 
+                               class="btn {{ $horizon === 6 ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary' }}">
+                                6 Bulan (Semester)
+                            </a>
+                            <a href="{{ route('inventory.forecasting', array_merge(request()->query(), ['horizon' => 12])) }}" 
+                               class="btn {{ $horizon === 12 ? 'btn-danger text-white fw-bold' : 'btn-outline-secondary' }}">
+                                12 Bulan (Tahunan)
+                            </a>
+                        </div>
+                    </div>
+
                     <!-- Kategori Filter -->
-                    <div class="col-12 col-sm-6 col-md-3">
+                    <div class="col-12 col-sm-6 col-md-3 col-xl-2">
+                        <label class="form-label fs-9 text-muted d-block mb-1 fw-bold text-uppercase">Kategori:</label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-tag"></i></span>
                             <select name="category_id" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
@@ -92,6 +117,7 @@
 
                     <!-- Status Risiko Filter -->
                     <div class="col-12 col-sm-6 col-md-2">
+                        <label class="form-label fs-9 text-muted d-block mb-1 fw-bold text-uppercase">Status Risiko:</label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-shield-exclamation"></i></span>
                             <select name="risk_level" onchange="this.form.submit()" class="form-select form-select-sm border-start-0 fs-8">
@@ -104,8 +130,8 @@
                     </div>
 
                     <!-- Reset Button -->
-                    @if($search || ($categoryId && $categoryId !== 'ALL') || $riskLevel)
-                        <div class="col-auto">
+                    @if($search || ($categoryId && $categoryId !== 'ALL') || $riskLevel || $horizon !== 6)
+                        <div class="col-auto align-self-end">
                             <a href="{{ route('inventory.forecasting') }}" class="btn btn-sm btn-outline-danger fs-8" title="Reset Filter">
                                 <i class="bi bi-x-circle me-1"></i> Reset
                             </a>
@@ -113,7 +139,8 @@
                     @endif
 
                     <!-- Search Bar -->
-                    <div class="col-12 col-md ms-md-auto">
+                    <div class="col-12 col-md ms-md-auto align-self-end">
+                        <label class="form-label fs-9 text-muted d-block mb-1 fw-bold text-uppercase">Pencarian:</label>
                         <div class="input-group input-group-sm">
                             <span class="input-group-text bg-body text-secondary border-end-0 fs-8"><i class="bi bi-search"></i></span>
                             <input type="text" 
@@ -135,13 +162,13 @@
                     <thead class="bg-body-tertiary text-secondary border-bottom">
                         <tr>
                             <th class="ps-4 py-3">Item & SKU</th>
-                            <th class="py-3 text-center">Permintaan / Bulan</th>
-                            <th class="py-3 text-center">Lead Time</th>
+                            <th class="py-3 text-center">Permintaan / Bln</th>
+                            <th class="py-3 text-center">Tren</th>
+                            <th class="py-3 text-center bg-primary-subtle text-primary-emphasis">Proyeksi ({{ $horizon }} Bln)</th>
                             <th class="py-3 text-center">Safety Stock</th>
                             <th class="py-3 text-center">Reorder Point (ROP)</th>
                             <th class="py-3 text-center">Stok Tersedia</th>
-                            <th class="py-3 text-center">Sisa Pasokan</th>
-                            <th class="py-3 text-center">Rekomendasi Beli</th>
+                            <th class="py-3 text-center bg-danger-subtle text-danger-emphasis">Rekomendasi Beli</th>
                             <th class="py-3 pe-4 text-center">Status Risiko</th>
                         </tr>
                     </thead>
@@ -153,14 +180,22 @@
                                     <div class="text-secondary fs-8 font-monospace">{{ $f['sku'] }} • {{ $f['category_name'] ?? '' }}{{ !empty($f['category_name']) && $f['category_name'] !== '-' ? ' • ' : '' }}{{ $f['uom'] }}</div>
                                 </td>
                                 <td class="py-3 text-center fw-bold text-body font-monospace">{{ $f['avg_monthly_demand'] }} {{ $f['uom'] }}</td>
-                                <td class="py-3 text-center text-secondary">{{ $f['lead_time_days'] }} Hari</td>
-                                <td class="py-3 text-center fw-bold text-primary font-monospace">{{ $f['recommended_safety_stock'] }} {{ $f['uom'] }}</td>
+                                <td class="py-3 text-center">
+                                    @if(($f['trend'] ?? 'STABLE') === 'UP')
+                                        <span class="badge bg-danger-subtle text-danger fs-9" title="Tren Permintaan Meningkat"><i class="bi bi-graph-up-arrow me-1"></i> NAIK</span>
+                                    @elseif(($f['trend'] ?? 'STABLE') === 'DOWN')
+                                        <span class="badge bg-success-subtle text-success fs-9" title="Tren Permintaan Menurun"><i class="bi bi-graph-down-arrow me-1"></i> TURUN</span>
+                                    @else
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis fs-9" title="Tren Stabil"><i class="bi bi-dash me-1"></i> STABIL</span>
+                                    @endif
+                                </td>
+                                <td class="py-3 text-center fw-bold text-primary font-monospace bg-primary-subtle bg-opacity-25">
+                                    {{ $f['projected_horizon_demand'] ?? ($f['avg_monthly_demand'] * $horizon) }} {{ $f['uom'] }}
+                                </td>
+                                <td class="py-3 text-center font-monospace text-secondary">{{ $f['recommended_safety_stock'] }} {{ $f['uom'] }}</td>
                                 <td class="py-3 text-center fw-bold text-warning-emphasis font-monospace">{{ $f['reorder_point'] }} {{ $f['uom'] }}</td>
                                 <td class="py-3 text-center fw-bold font-monospace text-body">{{ $f['current_available'] }} {{ $f['uom'] }}</td>
-                                <td class="py-3 text-center fw-bold {{ $f['days_of_supply'] < 15 ? 'text-danger' : 'text-body' }}">
-                                    ~{{ $f['days_of_supply'] }} Hari
-                                </td>
-                                <td class="py-3 text-center">
+                                <td class="py-3 text-center bg-danger-subtle bg-opacity-25">
                                     @if($f['suggested_reorder_qty'] > 0)
                                         <span class="badge bg-danger-subtle text-danger font-monospace fw-bold fs-8 px-2 py-1">
                                             +{{ $f['suggested_reorder_qty'] }} {{ $f['uom'] }}

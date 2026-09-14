@@ -54,7 +54,7 @@
     </div>
 
     <!-- Form -->
-    <form action="{{ route('receiving.confirm.store', $shipment->id) }}" method="POST" class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
+    <form action="{{ route('receiving.confirm.store', $shipment->id) }}" method="POST" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
         @csrf
 
         <div class="space-y-3">
@@ -102,6 +102,26 @@
                     </div>
                 </div>
             @endforeach
+        </div>
+
+        <!-- Mandatory Berita Acara .pdf Upload if Discrepancy Exists -->
+        <div class="p-4 bg-amber-50/80 border border-amber-200 rounded-xl space-y-2">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2 text-amber-900 font-bold text-xs">
+                    <i class="fa-solid fa-file-pdf text-rose-600 text-base"></i>
+                    <span>Unggah Berita Acara Selisih / Kerusakan (Mandatory .pdf)</span>
+                </div>
+                <span class="text-[10px] font-bold text-amber-800 uppercase px-2 py-0.5 bg-amber-200/70 rounded">Wajib Berita Acara</span>
+            </div>
+            <p class="text-[11px] text-amber-800">
+                Sesuai SOP & KAK Bank Jatim, jika terdapat kuantitas <strong>rusak</strong> atau <strong>kurang/hilang</strong> pada salah satu item di atas, Anda <strong>wajib mengunggah berkas Berita Acara (.pdf)</strong> resmi yang ditandatangani.
+            </p>
+            <div>
+                <input type="file" name="berita_acara_pdf" accept="application/pdf" class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 file:mr-4 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 cursor-pointer">
+                @error('berita_acara_pdf')
+                    <div class="text-rose-600 text-xs mt-1 font-semibold">{{ $message }}</div>
+                @enderror
+            </div>
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-4 border-t border-slate-100">

@@ -110,6 +110,14 @@ class User extends Authenticatable
                 'AUDITOR',
                 'MANAGEMENT',
             ], true),
+            'emboss' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'INVENTORY_OFFICER',
+                'ORDER_APPROVER',
+                'REQUESTER_CABANG',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
             'order_approvals' => in_array($this->role, [
                 'ORDER_APPROVER',
                 'AUDITOR',
@@ -131,6 +139,31 @@ class User extends Authenticatable
             'distribution' => in_array($this->role, [
                 'DISTRIBUTION_OFFICER',
                 'WAREHOUSE_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+
+            'returns' => in_array($this->role, [
+                'REQUESTER_CABANG',
+                'ORDER_APPROVER',
+                'RECEIVING_OFFICER',
+                'WAREHOUSE_OFFICER',
+                'INVENTORY_OFFICER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'destructions' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'INVENTORY_OFFICER',
+                'ORDER_APPROVER',
+                'AUDITOR',
+                'MANAGEMENT',
+            ], true),
+            'production' => in_array($this->role, [
+                'WAREHOUSE_OFFICER',
+                'INVENTORY_OFFICER',
+                'DISTRIBUTION_OFFICER',
+                'ORDER_APPROVER',
                 'AUDITOR',
                 'MANAGEMENT',
             ], true),
@@ -335,6 +368,7 @@ class User extends Authenticatable
 
         return match ($report) {
             'stock_valuation' => in_array($this->role, ['INVENTORY_OFFICER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'MANAGEMENT', 'AUDITOR'], true),
+            'stock_distribution' => in_array($this->role, ['INVENTORY_OFFICER', 'FINANCE_OFFICER', 'FINANCE_APPROVER', 'MANAGEMENT', 'AUDITOR', 'WAREHOUSE_OFFICER', 'REQUESTER_CABANG', 'ORDER_APPROVER'], true),
             'settlements' => in_array($this->role, ['FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'MANAGEMENT', 'AUDITOR'], true),
             'procurement_coverage' => in_array($this->role, ['PROCUREMENT_OFFICER', 'PROCUREMENT_APPROVER', 'MANAGEMENT', 'AUDITOR'], true),
             'general_ledger' => in_array($this->role, ['FINANCE_OFFICER', 'FINANCE_APPROVER', 'BUDGET_OFFICER', 'MANAGEMENT', 'AUDITOR', 'REQUESTER_CABANG', 'ORDER_APPROVER'], true),

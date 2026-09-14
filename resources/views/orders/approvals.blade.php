@@ -137,10 +137,30 @@
                                         <span class="badge {{ $selBadge }} fs-8 text-uppercase">
                                             {{ str_replace('_', ' ', $selectedOrder->status) }}
                                         </span>
+                                        @if($selectedOrder->is_overbudget)
+                                            <span class="badge bg-danger fs-8">
+                                                <i class="bi bi-exclamation-octagon-fill me-1"></i> OVERBUDGET ({{ $selectedOrder->projected_utilization }}%)
+                                            </span>
+                                        @elseif($selectedOrder->projected_utilization >= 80)
+                                            <span class="badge bg-warning text-dark fs-8">
+                                                <i class="bi bi-exclamation-triangle-fill me-1"></i> BUDGET WARNING ({{ $selectedOrder->projected_utilization }}%)
+                                            </span>
+                                        @endif
                                     </div>
                                     <p class="fs-7 text-secondary mb-0 mt-1">
                                         Pemohon: <strong class="text-body">{{ $selectedOrder->requester->name }}</strong> • {{ $selectedOrder->created_at->format('d M Y, H:i') }} WIB • Unit: {{ $selectedOrder->requestingOrganization->name }} ({{ $selectedOrder->requestingOrganization->code }})
                                     </p>
+                                    @if($selectedOrder->is_overbudget)
+                                        <div class="alert alert-warning border border-warning d-flex align-items-center gap-2 p-2 mt-2 mb-0 fs-8">
+                                            <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                                            <div>
+                                                <strong>Peringatan Anggaran:</strong> Total order Rp {{ number_format($selectedOrder->total_estimated_value, 0, ',', '.') }} menyebabkan proyeksi anggaran mencapai <strong>{{ $selectedOrder->projected_utilization }}%</strong> (>100%).
+                                                @if($selectedOrder->overbudget_approval_reason)
+                                                    <div class="text-secondary mt-1">Dispensasi: <em>"{{ $selectedOrder->overbudget_approval_reason }}"</em></div>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
 
                                 <!-- Action Buttons -->
@@ -151,8 +171,13 @@
                                             <button type="button" @click="rejectModal = true" class="btn btn-sm btn-outline-danger fw-bold">
                                                 <i class="bi bi-x-circle me-1"></i> Tolak Order
                                             </button>
-                                            <form action="{{ route('orders.approve', $selectedOrder->id) }}" method="POST" class="m-0">
+                                            <form action="{{ route('orders.approve', $selectedOrder->id) }}" method="POST" class="m-0"
+                                                @if($selectedOrder->is_overbudget)
+                                                    onsubmit="var r = prompt('Order ini terdeteksi OVERBUDGET ({{ $selectedOrder->projected_utilization }}%). Masukkan alasan/catatan otorisasi dispensasi:'); if(!r) return false; this.overbudget_approval_reason.value = r; return true;"
+                                                @endif
+                                            >
                                                 @csrf
+                                                <input type="hidden" name="overbudget_approval_reason" value="">
                                                 <button type="submit" class="btn btn-sm btn-success fw-bold shadow-xs">
                                                     <i class="bi bi-check2-all me-1"></i> Setujui & Reservasi Stok
                                                 </button>

@@ -16,6 +16,7 @@ class Discrepancy extends Model
         'qty_expected' => 'integer',
         'qty_actual' => 'integer',
         'qty_damaged' => 'integer',
+        'verified_at' => 'datetime',
     ];
 
     public function receiving(): BelongsTo
@@ -36,5 +37,10 @@ class Discrepancy extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function checker(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'checker_user_id');
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Budget;
 use App\Models\Item;
 use App\Models\Order;
 use App\Models\OrderItem;
@@ -130,8 +131,9 @@ class OrderController extends Controller
             : Organization::where('is_active', true)->get();
         $warehouses = Warehouse::where('is_active', true)->get();
         $items = Item::with('stockBalances')->where('is_active', true)->get();
+        $budgets = Budget::where('year', now()->year)->where('is_active', true)->get()->keyBy('organization_id');
 
-        return view('orders.create', compact('organizations', 'warehouses', 'items'));
+        return view('orders.create', compact('organizations', 'warehouses', 'items', 'budgets'));
     }
 
     public function store(Request $request)
@@ -361,6 +363,16 @@ class OrderController extends Controller
 
         try {
             DB::transaction(function () use ($order) {
+                // Release committed budget if previously approved
+                if (in_array($order->status, ['APPROVED', 'ALLOCATED', 'PICKING', 'PACKING', 'READY_TO_SHIP'])) {
+                    $currentYear = (int) date('Y');
+                    $budget = $order->budget ?: Budget::where('organization_id', $order->requesting_organization_id)->where('year', $currentYear)->first();
+                    if ($budget) {
+                        $budget->committed_amount = max(0, (float) $budget->committed_amount - (float) $order->total_estimated_value);
+                        $budget->save();
+                    }
+                }
+
                 AuditTrailService::log('DELETE_ORDER', $order, [
                     'order_number' => $order->order_number,
                     'status' => $order->status,
@@ -380,7 +392,7 @@ class OrderController extends Controller
         }
     }
 
-    public function approve($id)
+    public function approve(Request $request, $id)
     {
         $order = Order::findOrFail($id);
         $user = Auth::user();
@@ -390,7 +402,8 @@ class OrderController extends Controller
         }
 
         try {
-            $this->orderFulfillmentService->approveOrder($order, Auth::user());
+            $overbudgetReason = $request->input('overbudget_approval_reason');
+            $this->orderFulfillmentService->approveOrder($order, Auth::user(), $overbudgetReason);
 
             return redirect()->back()
                 ->with('success', "Order {$order->order_number} berhasil disetujui & alokasi stok telah direservasi.");

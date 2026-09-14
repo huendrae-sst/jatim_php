@@ -19,10 +19,22 @@ class Order extends Model
     protected $casts = [
         'required_date' => 'date',
         'total_estimated_value' => 'decimal:2',
+        'is_overbudget' => 'boolean',
+        'projected_utilization' => 'decimal:2',
         'submitted_at' => 'datetime',
         'approved_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    public function budget(): BelongsTo
+    {
+        return $this->belongsTo(Budget::class);
+    }
+
+    public function embossFile(): BelongsTo
+    {
+        return $this->belongsTo(EmbossFile::class);
+    }
 
     public function requestingOrganization(): BelongsTo
     {
@@ -239,24 +251,44 @@ class Order extends Model
             'badge_class' => $isPackingDone ? 'text-bg-success' : ($isPackingCurrent ? 'text-bg-primary' : 'text-bg-secondary'),
         ];
 
-        // 5. Pengiriman Ekspedisi (IN_TRANSIT)
+        // 5. Pengiriman Ekspedisi (IN_TRANSIT) / Ambil di KP (POC-28)
         $shipment = $this->shipment;
         $isShipmentDone = in_array($this->status, ['IN_TRANSIT', 'RECEIVED', 'COMPLETED']) && $shipment;
         $isShipmentCurrent = $this->status === 'IN_TRANSIT' && $shipment;
         $shipDate = $shipment?->dispatched_at ?? $shipment?->created_at;
 
+        $isPickupKp = ($this->delivery_method === 'PICKUP_KP') || ($shipment && $shipment->delivery_method === 'PICKUP_KP');
+        $picName = $this->pickup_pic_name ?: ($shipment?->pickup_pic_name);
+        $picNip = $this->pickup_pic_nip ?: ($shipment?->pickup_pic_nip);
+        $picPos = $this->pickup_pic_position ?: ($shipment?->pickup_pic_position);
+
+        $label = $isPickupKp ? 'Penyerahan / Ambil di KP (Pickup)' : 'Pengiriman & Manifest Ekspedisi (In-Transit)';
+        $actorName = $isPickupKp
+            ? ($picName ?: ($shipment?->dispatcher?->name ?? 'PIC Cabang'))
+            : ($shipment?->dispatcher?->name ?? ($shipment?->courier?->name ?? '-'));
+        $actorRole = $isPickupKp ? 'PIC Pengambil Unit (Ambil di KP)' : ($shipment?->courier?->name ? ('Kurir: '.$shipment->courier->name) : 'Dispatch Officer');
+
+        $desc = '-';
+        if ($isPickupKp) {
+            $desc = $shipment
+                ? ("Barang diserahkan via Ambil di KP kepada {$picName} (NIP: {$picNip}, Jabatan: {$picPos}).")
+                : ($isPackingDone ? 'Barang selesai dikemas, menunggu pengambilan langsung oleh PIC Cabang di Kantor Pusat.' : '-');
+        } else {
+            $desc = $shipment
+                ? ('Manifest '.$shipment->manifest_number.' diterbitkan. No. Resi: '.($shipment->tracking_number ?? '-').' dalam perjalanan.')
+                : ($isPackingDone ? 'Menunggu penyerahan paket ke jasa ekspedisi/kurir dan cetak surat jalan.' : '-');
+        }
+
         $timeline[] = [
             'step' => 5,
             'code' => 'IN_TRANSIT',
-            'label' => 'Pengiriman & Manifest Ekspedisi (In-Transit)',
+            'label' => $label,
             'status_state' => $isShipmentDone ? 'DONE' : 'PENDING',
             'date_formatted' => $shipDate ? $shipDate->format('d M Y, H:i').' WIB' : '-',
-            'actor_name' => $shipment?->dispatcher?->name ?? ($shipment?->courier?->name ?? '-'),
-            'actor_role' => $shipment?->courier?->name ? ('Kurir: '.$shipment->courier->name) : 'Dispatch Officer',
-            'description' => $shipment
-                ? ('Manifest '.$shipment->manifest_number.' diterbitkan. No. Resi: '.($shipment->tracking_number ?? '-').' dalam perjalanan.')
-                : ($isPackingDone ? 'Menunggu penyerahan paket ke jasa ekspedisi/kurir dan cetak surat jalan.' : '-'),
-            'badge_label' => $isShipmentCurrent ? 'IN-TRANSIT' : ($isShipmentDone ? 'TERKIRIM' : 'MENUNGGU'),
+            'actor_name' => $actorName,
+            'actor_role' => $actorRole,
+            'description' => $desc,
+            'badge_label' => $isShipmentCurrent ? ($isPickupKp ? 'SIAP AMBIL' : 'IN-TRANSIT') : ($isShipmentDone ? 'TERSERAHKAN' : 'MENUNGGU'),
             'badge_class' => $isShipmentCurrent ? 'text-bg-info' : ($isShipmentDone ? 'text-bg-success' : 'text-bg-secondary'),
         ];
 

@@ -71,6 +71,11 @@ class DashboardController extends Controller
         $forecasts = $this->forecastingService->getAllForecasts();
         $criticalRiskItems = array_filter($forecasts, fn ($f) => $f['risk_level'] !== 'SAFE');
         $ewsSummary = $this->earlyWarningService->getSummaryMetrics();
+        $budgetAlertSummary = $this->earlyWarningService->getBudgetAlertSummary($currentYear);
+        $criticalBudgets = array_values(array_filter(
+            $this->earlyWarningService->getBudgetEvaluations($currentYear),
+            fn ($b) => $b['risk_level'] !== 'SAFE'
+        ));
 
         // 5. Chart 1: Stock Valuation by Category
         $categoryValuations = Category::with('items.stockBalances')->get()->map(function ($cat) {
@@ -307,7 +312,9 @@ class DashboardController extends Controller
             'topFastMoving',
             'recentOrders',
             'notifications',
-            'ewsSummary'
+            'ewsSummary',
+            'budgetAlertSummary',
+            'criticalBudgets'
         ));
     }
 }

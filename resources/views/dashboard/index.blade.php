@@ -124,6 +124,39 @@
         </div>
     @endif
 
+    <!-- EWS Early Warning Anggaran Banner -->
+    @if(($budgetAlertSummary['total_alerts'] ?? 0) > 0)
+        <div class="alert alert-warning border-warning-subtle d-flex align-items-center justify-content-between p-3 rounded-3 shadow-xs mb-0 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div class="rounded-circle bg-warning text-dark p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                    <i class="bi bi-cash-coin fs-5"></i>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                        Early Warning System (EWS) Anggaran: {{ $budgetAlertSummary['total_alerts'] }} Unit Kerja Terdeteksi
+                        @if($budgetAlertSummary['overbudget_count'] > 0)
+                            <span class="badge bg-danger"><i class="bi bi-slash-circle me-1"></i>{{ $budgetAlertSummary['overbudget_count'] }} Overbudget &ge;100%</span>
+                        @endif
+                        @if($budgetAlertSummary['critical_90_count'] > 0)
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle-fill me-1"></i>{{ $budgetAlertSummary['critical_90_count'] }} Kritis &ge;90%</span>
+                        @endif
+                        @if($budgetAlertSummary['warning_80_count'] > 0)
+                            <span class="badge bg-info text-dark"><i class="bi bi-exclamation-circle me-1"></i>{{ $budgetAlertSummary['warning_80_count'] }} Siaga &ge;80%</span>
+                        @endif
+                    </h6>
+                    <p class="fs-8 text-secondary mb-0">
+                        Pagu anggaran belanja mendekati atau melampaui plafon tahunan. Total serapan berjalan: <strong>{{ $budgetAlertSummary['overall_rate'] }}%</strong> dari pagu Rp {{ number_format($budgetAlertSummary['total_allocated'] / 1000000, 1) }}M.
+                    </p>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('master.budgets.early_warning') }}" class="btn btn-sm btn-dark fs-8">
+                    <i class="bi bi-pie-chart-fill me-1"></i> Detail EWS Anggaran
+                </a>
+            </div>
+        </div>
+    @endif
+
     <!-- Analytics & Charts Grid (Unified 2x2 Layout) -->
     <div class="row g-3 mb-4">
         <!-- Chart 1: Category Valuation -->

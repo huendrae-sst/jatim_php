@@ -59,4 +59,14 @@ class Organization extends Model
     {
         return $this->hasMany(CostCenter::class);
     }
+
+    public function expeditionMappings(): HasMany
+    {
+        return $this->hasMany(ExpeditionMapping::class);
+    }
+
+    public function defaultExpeditionMapping(): HasOne
+    {
+        return $this->hasOne(ExpeditionMapping::class)->where('is_active', true)->latestOfMany();
+    }
 }

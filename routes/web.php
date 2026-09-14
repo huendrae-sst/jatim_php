@@ -4,14 +4,17 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\EarlyWarningController;
+use App\Http\Controllers\EmbossController;
 use App\Http\Controllers\EssReportController;
 use App\Http\Controllers\InitialStockController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\MasterDataController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ProcurementController;
+use App\Http\Controllers\ProductionController;
 use App\Http\Controllers\ReceivingController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReverseInventoryController;
 use App\Http\Controllers\SettlementController;
 use App\Http\Controllers\StockOpnameController;
 use App\Http\Controllers\SwitchingStockController;
@@ -81,6 +84,57 @@ Route::middleware('auth')->group(function () {
         Route::post('/{id}/switching', [OrderController::class, 'proposeSwitching'])->name('switching');
     });
 
+    // Workflow: Emboss & Card Personalization Integration (POC-20 to POC-28, POC-54)
+    Route::prefix('emboss')->name('emboss.')->group(function () {
+        Route::get('/', [EmbossController::class, 'index'])->name('index');
+        Route::post('/', [EmbossController::class, 'store'])->name('store');
+        Route::get('/template', [EmbossController::class, 'downloadTemplate'])->name('template');
+        Route::get('/{id}', [EmbossController::class, 'show'])->name('show');
+        Route::get('/{id}/reject-queue', [EmbossController::class, 'rejectQueue'])->name('reject_queue');
+        Route::post('/records/{id}/reprocess', [EmbossController::class, 'updateRecord'])->name('records.reprocess');
+        Route::post('/{id}/generate-orders', [EmbossController::class, 'generateOrders'])->name('generate_orders');
+        Route::put('/{id}', [EmbossController::class, 'update'])->name('update');
+        Route::delete('/{id}', [EmbossController::class, 'destroy'])->name('destroy');
+    });
+
+    // Workflow: Production, Personalization & Manifest (POC-30, POC-32)
+    Route::prefix('production')->name('production.')->group(function () {
+        Route::get('/', [ProductionController::class, 'index'])->name('index');
+        Route::post('/', [ProductionController::class, 'store'])->name('store');
+        Route::get('/{id}', [ProductionController::class, 'show'])->name('show');
+        Route::put('/{id}', [ProductionController::class, 'update'])->name('update');
+        Route::delete('/{id}', [ProductionController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/issue-stock', [ProductionController::class, 'issueStock'])->name('issue_stock');
+        Route::get('/{id}/manifest', [ProductionController::class, 'manifest'])->name('manifest');
+    });
+
+    // Reverse Inventory: Retur Barang (POC-41)
+    Route::prefix('returns')->name('returns.')->group(function () {
+        Route::get('/', [ReverseInventoryController::class, 'returnsIndex'])->name('index');
+        Route::get('/create', [ReverseInventoryController::class, 'returnsCreate'])->name('create');
+        Route::post('/', [ReverseInventoryController::class, 'returnsStore'])->name('store');
+        Route::get('/{id}', [ReverseInventoryController::class, 'returnsShow'])->name('show');
+        Route::put('/{id}', [ReverseInventoryController::class, 'returnsUpdate'])->name('update');
+        Route::delete('/{id}', [ReverseInventoryController::class, 'returnsDestroy'])->name('destroy');
+        Route::post('/{id}/approve', [ReverseInventoryController::class, 'returnsApprove'])->name('approve');
+        Route::post('/{id}/reject', [ReverseInventoryController::class, 'returnsReject'])->name('reject');
+        Route::post('/{id}/ship', [ReverseInventoryController::class, 'returnsShip'])->name('ship');
+        Route::post('/{id}/receive', [ReverseInventoryController::class, 'returnsReceive'])->name('receive');
+    });
+
+    // Reverse Inventory: Pemusnahan Barang & Berita Acara (POC-43)
+    Route::prefix('destructions')->name('destructions.')->group(function () {
+        Route::get('/', [ReverseInventoryController::class, 'destructionsIndex'])->name('index');
+        Route::get('/create', [ReverseInventoryController::class, 'destructionsCreate'])->name('create');
+        Route::post('/', [ReverseInventoryController::class, 'destructionsStore'])->name('store');
+        Route::get('/{id}', [ReverseInventoryController::class, 'destructionsShow'])->name('show');
+        Route::put('/{id}', [ReverseInventoryController::class, 'destructionsUpdate'])->name('update');
+        Route::delete('/{id}', [ReverseInventoryController::class, 'destructionsDestroy'])->name('destroy');
+        Route::post('/{id}/approve', [ReverseInventoryController::class, 'destructionsApprove'])->name('approve');
+        Route::post('/{id}/execute', [ReverseInventoryController::class, 'destructionsExecute'])->name('execute');
+        Route::get('/{id}/berita-acara', [ReverseInventoryController::class, 'destructionsBeritaAcara'])->name('berita_acara');
+    });
+
     // Workflow 2: Warehouse Picking & Packing
     Route::prefix('warehouse')->name('warehouse.')->group(function () {
         Route::get('/picking', [WarehouseController::class, 'pickingQueue'])->name('picking.queue');
@@ -109,6 +163,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/confirm/{shipmentId}', [ReceivingController::class, 'confirmReceipt'])->name('confirm.store');
         Route::get('/discrepancies', [ReceivingController::class, 'discrepancies'])->name('discrepancies');
         Route::get('/discrepancies/{id}/print', [ReceivingController::class, 'discrepancyPrint'])->name('discrepancies.print');
+        Route::get('/discrepancies/{id}/berita-acara', [ReceivingController::class, 'downloadBeritaAcara'])->name('discrepancies.berita_acara');
     });
 
     // Workflow 2: Inter-unit Financial Settlement
@@ -123,6 +178,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/stock-balances', [InventoryController::class, 'stockBalances'])->name('balances');
         Route::get('/stock-card/{itemId}', [InventoryController::class, 'stockCard'])->name('stock_card');
         Route::post('/adjustments', [InventoryController::class, 'adjustmentStore'])->name('adjustments.store');
+        Route::post('/adjustments/{id}/approve', [InventoryController::class, 'adjustmentApprove'])->name('adjustments.approve');
+        Route::post('/adjustments/{id}/reject', [InventoryController::class, 'adjustmentReject'])->name('adjustments.reject');
         Route::get('/stock-opname', [StockOpnameController::class, 'index'])->name('stock_opname');
         Route::post('/stock-opname', [StockOpnameController::class, 'store'])->name('stock_opname.store');
         Route::get('/stock-opname/history', [StockOpnameController::class, 'history'])->name('stock_opname.history');
@@ -147,6 +204,11 @@ Route::middleware('auth')->group(function () {
         Route::post('/switching-stocks/{id}/reject', [SwitchingStockController::class, 'reject'])->name('switching.reject');
         Route::post('/switching-stocks/{id}/dispatch', [SwitchingStockController::class, 'dispatchTransfer'])->name('switching.dispatch');
         Route::post('/switching-stocks/{id}/receive', [SwitchingStockController::class, 'receiveTransfer'])->name('switching.receive');
+
+        // Audit & Control Lanjutan (POC-15, POC-16, POC-44)
+        Route::get('/reconciliation', [InventoryController::class, 'reconciliation'])->name('reconciliation');
+        Route::get('/movement-inquiry', [InventoryController::class, 'historicalMovement'])->name('movement_inquiry');
+        Route::post('/stock-balances/{id}/limits', [InventoryController::class, 'updateStockLimits'])->name('balances.limits');
     });
 
     // Executive & Operational Reports
@@ -158,6 +220,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/settlements', [ReportController::class, 'settlementsReport'])->name('settlements');
         Route::get('/general-ledger', [ReportController::class, 'generalLedger'])->name('general_ledger');
         Route::get('/general-ledger/export-csv', [ReportController::class, 'exportGeneralLedgerCsv'])->name('general_ledger.csv');
+        Route::get('/stock-distribution', [ReportController::class, 'stockDistribution'])->name('stock_distribution');
+        Route::get('/stock-distribution/export-csv', [ReportController::class, 'exportStockDistributionCsv'])->name('stock_distribution.csv');
     });
 
     // Executive Support System (ESS) - 7 Laporan Eksekutif
@@ -224,15 +288,24 @@ Route::middleware('auth')->group(function () {
         Route::post('/vendors', [MasterDataController::class, 'vendorStore'])->name('vendors.store');
         Route::post('/couriers', [MasterDataController::class, 'courierStore'])->name('couriers.store');
 
+        // Expedition Mappings (POC-35)
+        Route::get('/expedition-mappings', [MasterDataController::class, 'expeditionMappingsIndex'])->name('expedition_mappings');
+        Route::post('/expedition-mappings', [MasterDataController::class, 'expeditionMappingStore'])->name('expedition_mappings.store');
+        Route::delete('/expedition-mappings/{id}', [MasterDataController::class, 'expeditionMappingDestroy'])->name('expedition_mappings.destroy');
+
         // Users CRUD
         Route::get('/users', [MasterDataController::class, 'usersIndex'])->name('users');
         Route::post('/users', [MasterDataController::class, 'userStore'])->name('users.store');
         Route::put('/users/{id}', [MasterDataController::class, 'userUpdate'])->name('users.update');
         Route::delete('/users/{id}', [MasterDataController::class, 'userDestroy'])->name('users.destroy');
 
-        // Budgets CRUD
+        // Budgets CRUD & Early Warning
         Route::get('/budgets', [MasterDataController::class, 'budgetIndex'])->name('budgets');
+        Route::get('/budgets/early-warning', [MasterDataController::class, 'budgetsEarlyWarning'])->name('budgets.early_warning');
+        Route::post('/budgets/early-warning/notify', [MasterDataController::class, 'notifyBudgetAlert'])->name('budgets.notify_alert');
         Route::post('/budgets', [MasterDataController::class, 'budgetStore'])->name('budgets.store');
+        Route::put('/budgets/{id}', [MasterDataController::class, 'budgetUpdate'])->name('budgets.update');
+        Route::delete('/budgets/{id}', [MasterDataController::class, 'budgetDestroy'])->name('budgets.destroy');
 
         // Accounting Master CRUD (CoA & Cost Center)
         Route::get('/accounting', [MasterDataController::class, 'accountingIndex'])->name('accounting');

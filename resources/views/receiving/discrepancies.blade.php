@@ -244,6 +244,13 @@
                                             title="Lihat Detail Berita Acara">
                                         <i class="bi bi-eye"></i>
                                     </button>
+                                    @if($disc->berita_acara_path)
+                                        <a href="{{ route('receiving.discrepancies.berita_acara', $disc->id) }}" 
+                                           class="btn-action-icon text-danger fw-bold" 
+                                           title="Unduh Dokumen Berita Acara PDF">
+                                            <i class="bi bi-file-earmark-pdf-fill"></i>
+                                        </a>
+                                    @endif
                                     <a href="{{ route('receiving.discrepancies.print', $disc->id) }}" 
                                        target="_blank" 
                                        class="btn-action-icon text-dark" 

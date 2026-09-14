@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Courier;
+use App\Models\ExpeditionMapping;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Shipment;
@@ -20,14 +21,14 @@ class DistributionController extends Controller
 
     public function index(Request $request)
     {
-        $readyOrders = Order::with(['requestingOrganization', 'items.item', 'packings'])
+        $readyOrders = Order::with(['requestingOrganization.defaultExpeditionMapping.courier', 'items.item', 'packings'])
             ->where('status', 'READY_TO_SHIP')
             ->get();
 
         $readySwitchings = SwitchingStock::with([
             'sourceOrganization',
             'sourceWarehouse',
-            'destinationOrganization',
+            'destinationOrganization.defaultExpeditionMapping.courier',
             'destinationWarehouse',
             'items.item',
             'item',
@@ -97,23 +98,40 @@ class DistributionController extends Controller
 
         $couriers = Courier::where('is_active', true)->get();
         $organizations = Organization::orderBy('name')->get();
+        $expeditionMappings = ExpeditionMapping::with(['courier', 'organization'])->where('is_active', true)->get();
 
-        return view('distribution.index', compact('readyOrders', 'readySwitchings', 'shipments', 'couriers', 'organizations', 'perPage'));
+        return view('distribution.index', compact('readyOrders', 'readySwitchings', 'shipments', 'couriers', 'organizations', 'expeditionMappings', 'perPage'));
     }
 
     public function createShipment(Request $request)
     {
-        $request->validate([
+        $isPickup = $request->delivery_method === 'PICKUP_KP';
+
+        $rules = [
             'order_id' => 'nullable|required_without:switching_stock_id|exists:orders,id',
             'switching_stock_id' => 'nullable|required_without:order_id|exists:switching_stocks,id',
-            'courier_id' => 'required|exists:couriers,id',
-            'service_type' => 'required|string',
-            'tracking_number' => 'required|string',
-            'shipping_cost' => 'required|numeric|min:0',
-            'eta_date' => 'required|date',
-            'koli_count' => 'nullable|integer|min:1',
-            'total_weight_kg' => 'nullable|numeric|min:0.1',
+            'delivery_method' => 'nullable|in:COURIER,PICKUP_KP',
             'notes' => 'nullable|string|max:1000',
+        ];
+
+        if ($isPickup) {
+            $rules['pickup_pic_nip'] = 'required|string|max:50';
+            $rules['pickup_pic_name'] = 'required|string|max:150';
+            $rules['pickup_pic_position'] = 'required|string|max:100';
+        } else {
+            $rules['courier_id'] = 'required|exists:couriers,id';
+            $rules['service_type'] = 'required|string';
+            $rules['tracking_number'] = 'required|string';
+            $rules['shipping_cost'] = 'required|numeric|min:0';
+            $rules['eta_date'] = 'required|date';
+            $rules['koli_count'] = 'nullable|integer|min:1';
+            $rules['total_weight_kg'] = 'nullable|numeric|min:0.1';
+        }
+
+        $request->validate($rules, [
+            'pickup_pic_nip.required' => 'Wajib mengisi NIP PIC Pengambil untuk metode Ambil di KP.',
+            'pickup_pic_name.required' => 'Wajib mengisi Nama Lengkap PIC Pengambil untuk metode Ambil di KP.',
+            'pickup_pic_position.required' => 'Wajib mengisi Jabatan PIC Pengambil untuk metode Ambil di KP.',
         ]);
 
         try {
@@ -133,19 +151,39 @@ class DistributionController extends Controller
                 );
             } else {
                 $order = Order::findOrFail($request->order_id);
+                $deliveryMethod = $isPickup ? 'PICKUP_KP' : 'COURIER';
+                $courierId = $isPickup ? null : (int) $request->courier_id;
+                $serviceType = $isPickup ? 'AMBIL_DI_KP' : $request->service_type;
+                $trackingNumber = $isPickup ? ('PKP/'.date('Ymd').'/'.sprintf('%04d', rand(1, 9999))) : $request->tracking_number;
+                $shippingCost = $isPickup ? 0.0 : (float) $request->shipping_cost;
+                $etaDate = $isPickup ? now()->toDateString() : $request->eta_date;
+
+                $pickupData = $isPickup ? [
+                    'nip' => $request->pickup_pic_nip,
+                    'name' => $request->pickup_pic_name,
+                    'position' => $request->pickup_pic_position,
+                    'notes' => $request->notes,
+                ] : null;
+
                 $shipment = $this->orderFulfillmentService->createShipment(
                     $order,
-                    (int) $request->courier_id,
-                    $request->service_type,
-                    $request->tracking_number,
-                    (float) $request->shipping_cost,
-                    $request->eta_date,
-                    Auth::user()
+                    $courierId,
+                    $serviceType,
+                    $trackingNumber,
+                    $shippingCost,
+                    $etaDate,
+                    Auth::user(),
+                    $deliveryMethod,
+                    $pickupData
                 );
             }
 
+            $successMsg = $isPickup
+                ? "Serah terima Ambil di KP {$shipment->manifest_number} berhasil dicatat kepada {$request->pickup_pic_name}."
+                : "Manifest {$shipment->manifest_number} berhasil diterbitkan dan status barang kini IN_TRANSIT.";
+
             return redirect()->route('distribution.shipments.index')
-                ->with('success', "Manifest {$shipment->manifest_number} berhasil diterbitkan dan status barang kini IN_TRANSIT.");
+                ->with('success', $successMsg);
         } catch (Exception $e) {
             return back()->with('error', $e->getMessage());
         }

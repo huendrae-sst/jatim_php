@@ -159,6 +159,9 @@ class DatabaseSeeder extends Seeder
             ['code' => 'CAT-TLR', 'name' => 'Perlengkapan Teller & Kas', 'description' => 'Stempel validasi, bak tinta, spons penghitung uang'],
             ['code' => 'CAT-SVN', 'name' => 'Souvenir Nasabah Prioritas', 'description' => 'Tumbler premium, powerbank eksklusif, payung golf'],
             ['code' => 'CAT-NET', 'name' => 'Perangkat Kabel & Jaringan', 'description' => 'Patch cord CAT6, converter, kabel HDMI, crimping tool'],
+            ['code' => 'CAT-ATM', 'name' => 'Kartu ATM & Debet/Kredit', 'description' => 'Persediaan blank card, kartu ATM instan, dan kartu bernama Bank Jatim'],
+            ['code' => 'CAT-TKN', 'name' => 'Hard Token & Security Device', 'description' => 'Perangkat token otentikasi perbankan / token PIN nasabah & corporate'],
+            ['code' => 'CAT-KUE', 'name' => 'Kartu Uang Elektronik (KUE)', 'description' => 'Kartu contactless prepaid e-money / Flazz / Brizzi co-branding Bank Jatim'],
         ];
 
         $categories = [];
@@ -167,7 +170,7 @@ class DatabaseSeeder extends Seeder
         }
 
         // =========================================================================
-        // 4. MASTER BARANG / ITEM (20 SKU Barang)
+        // 4. MASTER BARANG / ITEM (24 SKU Barang - Termasuk KAK Utama)
         // =========================================================================
         $itemsData = [
             ['category_id' => $categories['CAT-IT']->id, 'sku' => 'IT-TNR-001', 'barcode' => '8991001001', 'name' => 'Toner HP LaserJet Enterprise MFP M528', 'specification' => 'Black Original LaserJet Toner Cartridge 89A', 'uom' => 'UNIT', 'min_stock' => 10, 'safety_stock' => 20, 'reorder_point' => 35, 'lead_time_days' => 7, 'estimated_unit_price' => 2450000],
@@ -190,6 +193,11 @@ class DatabaseSeeder extends Seeder
             ['category_id' => $categories['CAT-TLR']->id, 'sku' => 'TLR-SPN-001', 'barcode' => '8991001018', 'name' => 'Spons Pembersih & Penghitung Uang Kasir', 'specification' => 'Bak bulat spons basah penghitung lembaran uang', 'uom' => 'PCS', 'min_stock' => 15, 'safety_stock' => 30, 'reorder_point' => 50, 'lead_time_days' => 3, 'estimated_unit_price' => 15000],
             ['category_id' => $categories['CAT-SVN']->id, 'sku' => 'SVN-PWR-001', 'barcode' => '8991001019', 'name' => 'Powerbank Wireless Fast Charge 10000mAh Prioritas', 'specification' => 'Powerbank MagSafe Fast Charge custom box gift set', 'uom' => 'UNIT', 'min_stock' => 10, 'safety_stock' => 20, 'reorder_point' => 35, 'lead_time_days' => 10, 'estimated_unit_price' => 340000],
             ['category_id' => $categories['CAT-NET']->id, 'sku' => 'NET-CBL-001', 'barcode' => '8991001020', 'name' => 'Kabel Patch Cord UTP Belden Cat6 3 Meter', 'specification' => 'Original Belden Cat6 molded patch cord factory terminated', 'uom' => 'PCS', 'min_stock' => 20, 'safety_stock' => 40, 'reorder_point' => 60, 'lead_time_days' => 3, 'estimated_unit_price' => 42000],
+            // 3 Kelompok Barang Utama KAK (POC-12, POC-33)
+            ['category_id' => $categories['CAT-ATM']->id, 'sku' => 'ATM-INST-001', 'barcode' => '8991001021', 'name' => 'Kartu ATM Instan Chip GPN Bank Jatim', 'specification' => 'Blank card chip hybrid EMV contactless GPN instan', 'uom' => 'PCS', 'min_stock' => 500, 'safety_stock' => 1000, 'reorder_point' => 1500, 'lead_time_days' => 14, 'estimated_unit_price' => 15000],
+            ['category_id' => $categories['CAT-ATM']->id, 'sku' => 'ATM-NAME-001', 'barcode' => '8991001022', 'name' => 'Kartu ATM Bernama Mastercard Platinum', 'specification' => 'Kartu debit personalisasi bernama chip EMV emboss', 'uom' => 'PCS', 'min_stock' => 200, 'safety_stock' => 500, 'reorder_point' => 800, 'lead_time_days' => 21, 'estimated_unit_price' => 18500],
+            ['category_id' => $categories['CAT-TKN']->id, 'sku' => 'TKN-HRD-001', 'barcode' => '8991001023', 'name' => 'Hard Token Internet Banking Digipass', 'specification' => 'Hardware OTP token One-Time Password Digipass Vasco', 'uom' => 'UNIT', 'min_stock' => 100, 'safety_stock' => 250, 'reorder_point' => 400, 'lead_time_days' => 30, 'estimated_unit_price' => 125000],
+            ['category_id' => $categories['CAT-KUE']->id, 'sku' => 'KUE-FLZ-001', 'barcode' => '8991001024', 'name' => 'Kartu Uang Elektronik (KUE) Co-Branding', 'specification' => 'Kartu prabayar contactless NFC co-branding Bank Jatim', 'uom' => 'PCS', 'min_stock' => 300, 'safety_stock' => 600, 'reorder_point' => 1000, 'lead_time_days' => 14, 'estimated_unit_price' => 25000],
         ];
 
         $items = [];
@@ -324,9 +332,19 @@ class DatabaseSeeder extends Seeder
         // =========================================================================
         $whCentral = $warehouses['GD-RKT'];
         foreach ($items as $sku => $it) {
-            // Gudang Pusat SIER
-            $onHandCentral = $sku === 'IT-TNR-001' ? 85 : ($sku === 'ATK-KRT-001' ? 240 : 150);
-            $reservedCentral = $sku === 'IT-TNR-001' ? 15 : 20;
+            // Gudang Pusat SIER (POC-12: ATM 1.000, Token 500, KUE 1.000)
+            $onHandCentral = match ($sku) {
+                'ATM-INST-001', 'KUE-FLZ-001' => 1000,
+                'TKN-HRD-001', 'ATM-NAME-001' => 500,
+                'IT-TNR-001' => 85,
+                'ATK-KRT-001' => 240,
+                default => 150,
+            };
+            $reservedCentral = match ($sku) {
+                'ATM-INST-001' => 50,
+                'IT-TNR-001' => 15,
+                default => 20,
+            };
             $damagedCentral = $sku === 'ATK-KRT-001' ? 2 : 0;
 
             StockBalance::create([

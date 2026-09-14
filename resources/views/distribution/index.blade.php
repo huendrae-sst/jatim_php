@@ -12,12 +12,35 @@
     dispatchModalOpen: false,
     viewModalOpen: false,
     dispatchType: 'order',
+    deliveryMethod: 'COURIER',
     selectedOrder: null,
     selectedSwitching: null,
     selectedShipment: null,
+    selectedCourierId: '',
+    selectedServiceType: 'REGULER',
+    isAutoMapped: false,
     readyOrdersList: {{ Js::from($readyOrders) }},
     readySwitchingsList: {{ Js::from($readySwitchings) }},
     allCouriers: {{ Js::from($couriers) }},
+
+    updateDefaultCourier() {
+        let mapping = null;
+        if (this.dispatchType === 'order' && this.selectedOrder) {
+            mapping = this.selectedOrder.requesting_organization?.default_expedition_mapping;
+        } else if (this.dispatchType === 'switching' && this.selectedSwitching) {
+            mapping = this.selectedSwitching.destination_organization?.default_expedition_mapping;
+        }
+
+        if (mapping && mapping.courier_id) {
+            this.selectedCourierId = mapping.courier_id;
+            this.selectedServiceType = mapping.default_service_type || 'REGULER';
+            this.isAutoMapped = true;
+        } else {
+            this.selectedCourierId = this.allCouriers.length > 0 ? this.allCouriers[0].id : '';
+            this.selectedServiceType = 'REGULER';
+            this.isAutoMapped = false;
+        }
+    },
 
     openCreateManifestModal(order = null) {
         this.dispatchType = 'order';
@@ -26,6 +49,7 @@
         } else if (this.readyOrdersList.length > 0 && !this.selectedOrder) {
             this.selectedOrder = this.readyOrdersList[0];
         }
+        this.updateDefaultCourier();
         this.dispatchModalOpen = true;
     },
 
@@ -36,6 +60,7 @@
         } else if (this.readySwitchingsList.length > 0 && !this.selectedSwitching) {
             this.selectedSwitching = this.readySwitchingsList[0];
         }
+        this.updateDefaultCourier();
         this.dispatchModalOpen = true;
     },
 
@@ -47,11 +72,13 @@
     onOrderSelect(event) {
         const orderId = event.target.value;
         this.selectedOrder = this.readyOrdersList.find(o => o.id == orderId) || null;
+        this.updateDefaultCourier();
     },
 
     onSwitchingSelect(event) {
         const swId = event.target.value;
         this.selectedSwitching = this.readySwitchingsList.find(s => s.id == swId) || null;
+        this.updateDefaultCourier();
     }
 }" 
 x-init="
@@ -659,55 +686,109 @@ class="space-y-4">
                         </template>
                     </div>
 
-                    <!-- Section 2: Jasa Ekspedisi & Detail Pengiriman -->
+                    <!-- Section 2: Jasa Ekspedisi & Detail Pengiriman / Ambil di KP -->
                     <div class="border rounded-2 p-3 bg-body-tertiary">
-                        <div class="fw-bold text-danger text-uppercase fs-9 mb-2">2. Informasi Ekspedisi & Tracking</div>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="fw-bold text-danger text-uppercase fs-9">2. Metode Distribusi & Pengiriman</div>
+                        </div>
+
+                        <!-- Delivery Method Selector for Orders -->
+                        <template x-if="dispatchType === 'order'">
+                            <div class="mb-3 border-bottom pb-2">
+                                <label class="form-label fs-8 fw-semibold mb-1">Pilih Metode Pengiriman <span class="text-danger">*</span></label>
+                                <div class="d-flex gap-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="delivery_method" id="distMethodCourier" value="COURIER" x-model="deliveryMethod">
+                                        <label class="form-check-label fs-8 fw-semibold" for="distMethodCourier">
+                                            <i class="bi bi-truck me-1"></i> Ekspedisi Kurir
+                                        </label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="delivery_method" id="distMethodPickup" value="PICKUP_KP" x-model="deliveryMethod">
+                                        <label class="form-check-label fs-8 fw-semibold text-danger" for="distMethodPickup">
+                                            <i class="bi bi-building me-1"></i> Ambil di Kantor Pusat (KP)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
                         
-                        <div class="mb-2.5">
-                            <label class="form-label fs-8 fw-semibold mb-1">Jasa Ekspedisi / Kurir <span class="text-danger">*</span></label>
-                            <select name="courier_id" required class="form-select form-select-sm fs-8">
-                                @foreach($couriers as $cr)
-                                    <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
-                                @endforeach
-                            </select>
+                        <!-- Courier Expedition Fields -->
+                        <div x-show="deliveryMethod === 'COURIER' || dispatchType === 'switching'" x-transition>
+                            <template x-if="isAutoMapped">
+                                <div class="alert alert-success py-1.5 px-2.5 fs-8 mb-2 d-flex align-items-center gap-2">
+                                    <i class="bi bi-magic text-success fs-7"></i>
+                                    <span><strong>Auto-mapped:</strong> Ekspedisi default kantor cabang otomatis terpilih.</span>
+                                </div>
+                            </template>
+
+                            <div class="mb-2.5">
+                                <label class="form-label fs-8 fw-semibold mb-1">Jasa Ekspedisi / Kurir <span class="text-danger">*</span></label>
+                                <select name="courier_id" x-model="selectedCourierId" :required="deliveryMethod === 'COURIER' || dispatchType === 'switching'" class="form-select form-select-sm fs-8">
+                                    @foreach($couriers as $cr)
+                                        <option value="{{ $cr->id }}">{{ $cr->name }} (SLA: {{ $cr->sla_days }} hari)</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="row g-2.5 mb-2.5">
+                                <div class="col-6">
+                                    <label class="form-label fs-8 fw-semibold mb-1">Layanan Kurir <span class="text-danger">*</span></label>
+                                    <input type="text" 
+                                           name="service_type" 
+                                           x-model="selectedServiceType" 
+                                           :required="deliveryMethod === 'COURIER' || dispatchType === 'switching'" 
+                                           class="form-control form-control-sm font-monospace fs-8">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fs-8 fw-semibold mb-1">Nomor Resi / AWB <span class="text-danger">*</span></label>
+                                    <input type="text" 
+                                           name="tracking_number" 
+                                           value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" 
+                                           :required="deliveryMethod === 'COURIER' || dispatchType === 'switching'" 
+                                           class="form-control form-control-sm font-monospace fw-bold fs-8">
+                                </div>
+                            </div>
+
+                            <div class="row g-2.5">
+                                <div class="col-6">
+                                    <label class="form-label fs-8 fw-semibold mb-1">Ongkos Kirim (Rp) <span class="text-danger">*</span></label>
+                                    <input type="number" 
+                                           name="shipping_cost" 
+                                           value="125000" 
+                                           min="0" 
+                                           :required="deliveryMethod === 'COURIER' || dispatchType === 'switching'" 
+                                           class="form-control form-control-sm font-monospace fw-bold fs-8">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fs-8 fw-semibold mb-1">Estimasi Tiba (ETA) <span class="text-danger">*</span></label>
+                                    <input type="date" 
+                                           name="eta_date" 
+                                           value="{{ date('Y-m-d', strtotime('+2 days')) }}" 
+                                           :required="deliveryMethod === 'COURIER' || dispatchType === 'switching'" 
+                                           class="form-control form-control-sm font-monospace fs-8">
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="row g-2.5 mb-2.5">
-                            <div class="col-6">
-                                <label class="form-label fs-8 fw-semibold mb-1">Layanan Kurir <span class="text-danger">*</span></label>
-                                <input type="text" 
-                                       name="service_type" 
-                                       value="REGULER" 
-                                       required 
-                                       class="form-control form-control-sm font-monospace fs-8">
+                        <!-- Pickup at KP Fields -->
+                        <div x-show="deliveryMethod === 'PICKUP_KP' && dispatchType === 'order'" x-transition class="space-y-2">
+                            <div class="alert alert-info py-1.5 px-2 fs-9 mb-2">
+                                <i class="bi bi-info-circle me-1"></i> Pengambilan mandiri di KP. Wajib mencantumkan data identitas PIC unit peminta.
                             </div>
-                            <div class="col-6">
-                                <label class="form-label fs-8 fw-semibold mb-1">Nomor Resi / AWB <span class="text-danger">*</span></label>
-                                <input type="text" 
-                                       name="tracking_number" 
-                                       value="BJ-EXP-{{ date('Ymd') }}-{{ rand(100, 999) }}" 
-                                       required 
-                                       class="form-control form-control-sm font-monospace fw-bold fs-8">
-                            </div>
-                        </div>
-
-                        <div class="row g-2.5">
-                            <div class="col-6">
-                                <label class="form-label fs-8 fw-semibold mb-1">Ongkos Kirim (Rp) <span class="text-danger">*</span></label>
-                                <input type="number" 
-                                       name="shipping_cost" 
-                                       value="125000" 
-                                       min="0" 
-                                       required 
-                                       class="form-control form-control-sm font-monospace fw-bold fs-8">
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label fs-8 fw-semibold mb-1">Estimasi Tiba (ETA) <span class="text-danger">*</span></label>
-                                <input type="date" 
-                                       name="eta_date" 
-                                       value="{{ date('Y-m-d', strtotime('+2 days')) }}" 
-                                       required 
-                                       class="form-control form-control-sm font-monospace fs-8">
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label fs-9 fw-semibold mb-0">NIP PIC Pengambil <span class="text-danger">*</span></label>
+                                    <input type="text" name="pickup_pic_nip" class="form-control form-control-sm" placeholder="Contoh: 198501102010121001" :required="deliveryMethod === 'PICKUP_KP' && dispatchType === 'order'">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label fs-9 fw-semibold mb-0">Nama Lengkap PIC <span class="text-danger">*</span></label>
+                                    <input type="text" name="pickup_pic_name" class="form-control form-control-sm" placeholder="Contoh: Budi Santoso" :required="deliveryMethod === 'PICKUP_KP' && dispatchType === 'order'">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label fs-9 fw-semibold mb-0">Jabatan / Unit Kerja <span class="text-danger">*</span></label>
+                                    <input type="text" name="pickup_pic_position" class="form-control form-control-sm" placeholder="Contoh: Staff Operasional Cabang" :required="deliveryMethod === 'PICKUP_KP' && dispatchType === 'order'">
+                                </div>
                             </div>
                         </div>
                     </div>

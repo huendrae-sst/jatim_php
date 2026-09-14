@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Budget;
 use App\Models\Item;
 use App\Models\StockBalance;
 use App\Models\StockLedger;
@@ -355,5 +356,203 @@ class EarlyWarningService
         }
 
         return $totalIssues;
+    }
+
+    // =========================================================================
+    // EARLY WARNING SYSTEM (EWS) ANGGARAN & MULTI-THRESHOLD ALERT (POC-09 & POC-45)
+    // =========================================================================
+
+    /**
+     * Evaluasi EWS Anggaran per unit kerja / cabang.
+     * Threshold:
+     * - < 80%: SAFE
+     * - 80% - 89.9%: WARNING_80
+     * - 90% - 99.9%: CRITICAL_90
+     * - >= 100%: OVERBUDGET_100
+     */
+    public function evaluateBudget(Budget $budget): array
+    {
+        $allocated = (float) $budget->allocated_amount;
+        $committed = (float) $budget->committed_amount;
+        $realized = (float) $budget->realized_amount;
+        $used = $committed + $realized;
+        $available = (float) $budget->available_amount;
+        $rate = $allocated > 0 ? round(($used / $allocated) * 100, 2) : 0;
+
+        $riskLevel = 'SAFE';
+        $badgeClass = 'bg-success';
+        $statusLabel = 'Aman (<80%)';
+        $recommendation = 'Utilisasi anggaran berada di bawah ambang batas normal. Pengeluaran berjalan optimal.';
+        $isBlocked = false;
+
+        if ($rate >= 100) {
+            $riskLevel = 'OVERBUDGET_BLOCK';
+            $badgeClass = 'bg-danger';
+            $statusLabel = 'Overbudget (>=100%)';
+            $recommendation = 'Anggaran telah terlampaui. Seluruh pemesanan baru diblokir otomatis. Diperlukan penambahan pagu anggaran (Revisi RBB/RKA).';
+            $isBlocked = true;
+        } elseif ($rate >= 90) {
+            $riskLevel = 'CRITICAL_90';
+            $badgeClass = 'bg-warning text-dark';
+            $statusLabel = 'Kritis (90-99.9%)';
+            $recommendation = 'Pagu tersisa sangat tipis (<10%). Batasi pengeluaran non-prioritas dan lakukan efisiensi pengadaan.';
+        } elseif ($rate >= 80) {
+            $riskLevel = 'WARNING_80';
+            $badgeClass = 'bg-info text-dark';
+            $statusLabel = 'Siaga (80-89.9%)';
+            $recommendation = 'Utilisasi anggaran mencapai 80%. Beri peringatan dini kepada pemegang cost center.';
+        }
+
+        return [
+            'budget_id' => $budget->id,
+            'year' => $budget->year,
+            'organization_id' => $budget->organization_id,
+            'organization_code' => $budget->organization?->code ?? '-',
+            'organization_name' => $budget->organization?->name ?? '-',
+            'cost_center_code' => $budget->cost_center_code ?? ($budget->organization?->cost_center_code ?? '-'),
+            'cost_center_name' => $budget->cost_center_code ?? '-',
+            'allocated_amount' => $allocated,
+            'committed_amount' => $committed,
+            'realized_amount' => $realized,
+            'spent_amount' => $used,
+            'used_amount' => $used,
+            'remaining_amount' => $available,
+            'available_amount' => $available,
+            'utilization_rate' => $rate,
+            'utilization_pct' => $rate,
+            'risk_level' => $riskLevel,
+            'status_label' => $statusLabel,
+            'status_badge' => $budget->status_badge,
+            'badge_class' => $badgeClass,
+            'recommendation' => $recommendation,
+            'is_blocked' => $isBlocked,
+        ];
+    }
+
+    /**
+     * Rekapitulasi metrik EWS Anggaran untuk dashboard eksekutif dan alert banner.
+     */
+    public function getBudgetAlertSummary(?int $year = null): array
+    {
+        $year = $year ?: (int) date('Y');
+        $budgets = Budget::with('organization')->where('year', $year)->get();
+
+        $total = $budgets->count();
+        $safeCount = 0;
+        $warning80Count = 0;
+        $critical90Count = 0;
+        $overbudgetCount = 0;
+        $totalAllocated = 0.0;
+        $totalUsed = 0.0;
+
+        foreach ($budgets as $b) {
+            $eval = $this->evaluateBudget($b);
+            $totalAllocated += $eval['allocated_amount'];
+            $totalUsed += $eval['used_amount'];
+
+            if ($eval['risk_level'] === 'OVERBUDGET_BLOCK') {
+                $overbudgetCount++;
+            } elseif ($eval['risk_level'] === 'CRITICAL_90') {
+                $critical90Count++;
+            } elseif ($eval['risk_level'] === 'WARNING_80') {
+                $warning80Count++;
+            } else {
+                $safeCount++;
+            }
+        }
+
+        $overallRate = $totalAllocated > 0 ? round(($totalUsed / $totalAllocated) * 100, 1) : 0;
+        $actionRequired = $warning80Count + $critical90Count + $overbudgetCount;
+
+        return [
+            'year' => $year,
+            'total_budgets' => $total,
+            'safe' => $safeCount,
+            'safe_count' => $safeCount,
+            'warning_80' => $warning80Count,
+            'warning_80_count' => $warning80Count,
+            'critical_90' => $critical90Count,
+            'critical_90_count' => $critical90Count,
+            'overbudget_100' => $overbudgetCount,
+            'overbudget_count' => $overbudgetCount,
+            'action_required_count' => $actionRequired,
+            'total_alerts' => $actionRequired,
+            'total_allocated' => $totalAllocated,
+            'total_spent' => $totalUsed,
+            'total_used' => $totalUsed,
+            'overall_rate' => $overallRate,
+            'overall_utilization_pct' => $overallRate,
+        ];
+    }
+
+    /**
+     * Mengambil daftar evaluasi EWS anggaran dengan filter status threshold.
+     */
+    public function getBudgetEvaluations(?int $year = null, ?string $riskLevel = null): array
+    {
+        $year = $year ?: (int) date('Y');
+        $query = Budget::with('organization')->where('year', $year);
+
+        $budgets = $query->get();
+        $results = [];
+
+        foreach ($budgets as $b) {
+            $eval = $this->evaluateBudget($b);
+            if ($riskLevel && $riskLevel !== 'ALL' && $eval['risk_level'] !== $riskLevel) {
+                continue;
+            }
+            $results[] = $eval;
+        }
+
+        // Sort: Overbudget first, then critical, then warning, then safe (descending rate)
+        usort($results, fn ($a, $b) => $b['utilization_rate'] <=> $a['utilization_rate']);
+
+        return $results;
+    }
+
+    /**
+     * Memindai dan mengirim notifikasi alert anggaran untuk cabang yang menembus threshold.
+     */
+    public function scanAndNotifyBudgets(?int $year = null): int
+    {
+        $year = $year ?: (int) date('Y');
+        $evaluations = $this->getBudgetEvaluations($year);
+
+        $alertCount = 0;
+        foreach ($evaluations as $e) {
+            if ($e['risk_level'] === 'OVERBUDGET_BLOCK') {
+                NotificationService::sendAlert(
+                    title: "EWS Anggaran: Unit {$e['organization_code']} Terlampaui ({$e['utilization_rate']}%)",
+                    message: "Pagu anggaran unit {$e['organization_name']} telah overbudget (terpakai Rp ".number_format($e['used_amount']).' dari pagu Rp '.number_format($e['allocated_amount']).'). Diperlukan eskalasi persetujuan anggaran pimpinan.',
+                    priority: 'CRITICAL',
+                    targetRole: 'ORDER_APPROVER',
+                    txType: 'BUDGET_OVERBUDGET',
+                    url: route('master.budgets.early_warning', ['risk_level' => 'OVERBUDGET_BLOCK'])
+                );
+                $alertCount++;
+            } elseif ($e['risk_level'] === 'CRITICAL_90') {
+                NotificationService::sendAlert(
+                    title: "EWS Anggaran: Unit {$e['organization_code']} Mendekati Batas ({$e['utilization_rate']}%)",
+                    message: "Pagu anggaran unit {$e['organization_name']} telah mencapai {$e['utilization_rate']}% (Sisa plafon: Rp ".number_format($e['available_amount']).'). Waspada dalam pengajuan order baru.',
+                    priority: 'CRITICAL',
+                    targetRole: 'ORDER_APPROVER',
+                    txType: 'BUDGET_CRITICAL_90',
+                    url: route('master.budgets.early_warning', ['risk_level' => 'CRITICAL_90'])
+                );
+                $alertCount++;
+            } elseif ($e['risk_level'] === 'WARNING_80') {
+                NotificationService::sendAlert(
+                    title: "EWS Anggaran: Unit {$e['organization_code']} Siaga ({$e['utilization_rate']}%)",
+                    message: "Pagu anggaran unit {$e['organization_name']} telah menembus ambang 80% ({$e['utilization_rate']}%).",
+                    priority: 'WARNING',
+                    targetRole: 'REQUESTER_CABANG',
+                    txType: 'BUDGET_WARNING_80',
+                    url: route('master.budgets.early_warning', ['risk_level' => 'WARNING_80'])
+                );
+                $alertCount++;
+            }
+        }
+
+        return $alertCount;
     }
 }
