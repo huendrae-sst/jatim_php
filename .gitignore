@@ -25,3 +25,4 @@ Skenario_Pengujian_End_to_End_JIMS_Bank_Jatim.xlsx
 /.claude
 database/*.sqlite
 database/*.sqlite-journal
+PRD.md
