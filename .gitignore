@@ -23,6 +23,12 @@ bank_jatim_jims_workflow_specification.md
 Skenario_Pengujian_End_to_End_JIMS_Bank_Jatim.xlsx
 /.agents
 /.claude
+/.codex
 database/*.sqlite
 database/*.sqlite-journal
 PRD.md
+AGENTS.md
+CLAUDE.md
+.mcp.json
+boost.json
+opencode.json
